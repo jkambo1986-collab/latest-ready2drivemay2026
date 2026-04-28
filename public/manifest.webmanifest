@@ -1,0 +1,21 @@
+{
+  "name": "Ready 2 Drive Driving School",
+  "short_name": "Ready 2 Drive",
+  "description": "Edmonton's premier driving school. Class 5 GDL, insurance reduction courses, brush-up lessons.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#e11d48",
+  "lang": "en-CA",
+  "categories": ["education", "business", "lifestyle"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

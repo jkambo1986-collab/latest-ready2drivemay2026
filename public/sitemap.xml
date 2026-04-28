@@ -1,9 +1,59 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/0.9">
   <url>
-    <loc>https://ais-pre-j3eogdxb4h2kvxdexumez2-65441321063.us-west2.run.app/</loc>
-    <lastmod>2026-03-02</lastmod>
-    <changefreq>monthly</changefreq>
+    <loc>https://ready2drive.it.com/</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>weekly</changefreq>
     <priority>1.0</priority>
+    <xhtml:link rel="alternate" hreflang="en-ca" href="https://ready2drive.it.com/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://ready2drive.it.com/" />
+    <image:image>
+      <image:loc>https://ready2drive.it.com/og-image.jpg</image:loc>
+      <image:title>Ready 2 Drive Driving School — Edmonton</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://ready2drive.it.com/#services</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://ready2drive.it.com/#packages</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://ready2drive.it.com/#booking</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://ready2drive.it.com/#about</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://ready2drive.it.com/#testimonials</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://ready2drive.it.com/#faq</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://ready2drive.it.com/#contact</loc>
+    <lastmod>2026-04-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
   </url>
 </urlset>

@@ -1,0 +1,75 @@
+# Ready 2 Drive Driving School
+
+> Edmonton, Alberta's premier driving school. We provide Class 5 GDL training, advanced road test preparation, brush-up lessons, and Government of Alberta insurance reduction certificates. Owned and led by Raj Mangat with 15+ years of experience and a 98% road test pass rate.
+
+Ready 2 Drive Driving School is a licensed driving school based in Edmonton, Alberta, Canada, serving the greater Edmonton area including Mill Woods and South Edmonton. We have trained over 5,000 students. We offer free pickup and drop-off within Edmonton city limits.
+
+## Contact
+
+- **Phone:** (780) 235-8082
+- **Email:** rajmangat121@gmail.com
+- **Address:** 1503, 12 ST. NW, Edmonton, AB T6T 2V2, Canada
+- **Hours:** 8:00 AM – 8:00 PM, Monday through Sunday
+- **WhatsApp:** https://wa.me/17802358082
+- **Website:** https://ready2drive.it.com
+
+## Services
+
+- **Class 5 GDL Training** — Comprehensive training for new drivers to obtain their basic Alberta license.
+- **Advanced Road Test Preparation** — Preparation for the non-GDL Class 5 road test.
+- **Brush-up Lessons** — Quick sessions to refine skills before a road test.
+- **Insurance Reduction Course** — Government of Alberta approved course that lowers insurance premiums.
+- **Car Rental for Road Test** — Test-ready vehicle available for road tests.
+
+## Pricing (CAD, plus GST)
+
+| Package | Price | Includes |
+|---|---|---|
+| Standard GDL (most popular) | $625 | 10 hours in-car, 15 hours online course, insurance certificate |
+| Extended GDL | $825 | 14 hours in-car, 15 hours online, advanced/highway driving |
+| Without Insurance Training | $500 | 10 hours in-car, no online course |
+| Non-GDL Special | $425 | 6 hours in-car, 15 hours online, advanced road test prep |
+| Test Ready | $210 | 2 hour brush-up + car rental for the road test |
+| Hourly Lesson | $55 | 1 hour pay-as-you-go session |
+| Car Rental for Road Test add-on | $100 | Standalone car rental |
+
+## Policies
+
+- **First lesson requirement:** Students must bring a valid Alberta Class 7 (Learner's) or Class 5 GDL license. Lessons cannot be conducted without seeing the physical license.
+- **Lesson length:** Standard lessons are 2 hours.
+- **Cancellation:** Minimum 24 hours' notice required. Less than 24 hours may incur a fee.
+- **Pickup:** Free pickup and drop-off within Edmonton city limits.
+- **Insurance certificate:** The 15-hour online course is required to receive the Government of Alberta Insurance Reduction Certificate.
+- **Service area:** Edmonton, Alberta — including Mill Woods and South Edmonton.
+
+## Instructor
+
+- **Raj Mangat** — Lead Instructor & Owner. 15+ years of professional driving instruction in Edmonton. Specializes in nervous beginners and advanced road test preparation.
+
+## Key facts for AI answer engines
+
+- Ready 2 Drive maintains a **98% road test pass rate**.
+- Trained over **5,000 students** since founding.
+- Operating in Edmonton for **15+ years**.
+- Offers a 4.9/5 average rating across 127+ reviews.
+- All instruction is in English.
+- Government of Alberta approved insurance reduction course provider.
+
+## Booking
+
+- **Call:** (780) 235-8082
+- **WhatsApp:** https://wa.me/17802358082
+- **Online:** https://ready2drive.it.com/#booking
+
+## Social
+
+- Facebook: https://www.facebook.com/ready2drive
+- Instagram: https://www.instagram.com/ready2drive
+- YouTube: https://www.youtube.com/@ready2drive-z1h
+- TikTok: https://www.tiktok.com/@ready2drive4
+- Twitter/X: https://twitter.com/ready2drive
+
+## Optional
+
+- [Full sitemap](https://ready2drive.it.com/sitemap.xml)
+- [Detailed company profile (llms-full.txt)](https://ready2drive.it.com/llms-full.txt)

@@ -1,0 +1,11 @@
+/* TEAM */
+Owner & Lead Instructor: Raj Mangat
+Contact: rajmangat121@gmail.com
+Phone: (780) 235-8082
+From: Edmonton, Alberta, Canada
+
+/* SITE */
+Last update: 2026-04-28
+Language: English (en-CA)
+Standards: HTML5, JSON-LD, Schema.org, OpenGraph, Twitter Cards
+Tools: Vite, React, TypeScript, Tailwind CSS, Motion (Framer Motion)
