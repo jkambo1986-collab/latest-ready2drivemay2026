@@ -1134,10 +1134,10 @@ const Footer = () => {
         
         <div className="flex gap-6">
           {[
-            { name: 'Instagram', icon: Instagram, href: 'https://www.instagram.com/ready2drive' },
-            { name: 'Facebook', icon: Facebook, href: 'https://www.facebook.com/ready2drive' },
+            { name: 'Instagram', icon: Instagram, href: 'https://www.instagram.com/ready2driv.e?igsh=MWx2c3ZlMXhoNjk0dQ%3D%3D' },
+            { name: 'Facebook', icon: Facebook, href: 'https://www.facebook.com/profile.php?id=61588801644776' },
             { name: 'Twitter', icon: Twitter, href: 'https://twitter.com/ready2drive' },
-            { name: 'TikTok', icon: Music, href: 'https://www.tiktok.com/@ready2drive4' },
+            { name: 'TikTok', icon: Music, href: 'https://www.tiktok.com/@ready2drive4?_r=1&_t=ZS-95vk5EujQs1' },
             { name: 'YouTube', icon: Youtube, href: 'https://www.youtube.com/@ready2drive-z1h' }
           ].map(social => (
             <SocialLink key={social.name} social={social} />
