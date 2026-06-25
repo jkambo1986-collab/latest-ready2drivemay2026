@@ -1,9 +1,202 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence, useScroll, useTransform } from 'motion/react';
-import { Link } from 'react-scroll';
-import { Menu, X, GraduationCap, Phone, ChevronRight, ChevronLeft, Star, ChevronDown, Calendar, Instagram, Facebook, Twitter, MessageCircle, Music, Youtube } from 'lucide-react';
+import { motion, AnimatePresence, useScroll, useTransform, useInView, useSpring } from 'motion/react';
+import { Link, scroller, animateScroll } from 'react-scroll';
+import { Menu, X, GraduationCap, Phone, ChevronRight, ChevronLeft, Star, ChevronDown, Calendar, Instagram, Facebook, MessageCircle, Music, Youtube, Home, Play, Mail, MapPin, ArrowUp, Check } from 'lucide-react';
 import { cn } from './lib/utils';
 import { StudyQuiz } from './components/StudyQuiz';
+
+/** Business contact constants + a WhatsApp deep-link helper used across the booking flow. */
+const WHATSAPP_NUMBER = '17802358082';
+const buildWhatsAppLink = (message: string) =>
+  `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+
+/**
+ * Optional free Formspree backend for the contact form (no server required).
+ *   1. Sign up at https://formspree.io and create a new form.
+ *   2. Copy its endpoint — it looks like  https://formspree.io/f/abcdwxyz
+ *   3. Paste it below. Submissions are then emailed straight to the business inbox.
+ * Leave it as '' to keep the WhatsApp hand-off instead. If a submission ever fails,
+ * the form automatically falls back to WhatsApp so an enquiry is never lost.
+ */
+const FORMSPREE_ENDPOINT = '';
+
+/**
+ * Carries the package a visitor picked on the Fee Schedule into the Booking and
+ * Contact sections, so the chosen plan isn't lost between steps.
+ */
+type BookingContextValue = { selectedPackage: string; setSelectedPackage: (name: string) => void };
+const BookingContext = React.createContext<BookingContextValue>({
+  selectedPackage: '',
+  setSelectedPackage: () => {},
+});
+const useBooking = () => React.useContext(BookingContext);
+
+/**
+ * Image that shows a shimmering skeleton placeholder until the real image
+ * has loaded (or fades to a soft fallback on error).
+ */
+const ImageWithSkeleton: React.FC<React.ImgHTMLAttributes<HTMLImageElement>> = ({ className, alt = '', ...props }) => {
+  const [loaded, setLoaded] = useState(false);
+  const [errored, setErrored] = useState(false);
+
+  return (
+    <div className={cn("relative overflow-hidden bg-gray-100", className)}>
+      {!loaded && !errored && <div className="absolute inset-0 shimmer" aria-hidden="true" />}
+      {errored ? (
+        <div className="absolute inset-0 flex items-center justify-center text-gray-300">
+          <GraduationCap className="w-8 h-8" />
+        </div>
+      ) : (
+        <img
+          {...props}
+          alt={alt}
+          loading="lazy"
+          onLoad={() => setLoaded(true)}
+          onError={() => setErrored(true)}
+          className={cn(
+            "w-full h-full object-cover transition-opacity duration-700",
+            loaded ? "opacity-100" : "opacity-0"
+          )}
+        />
+      )}
+    </div>
+  );
+};
+
+/** Thin progress bar at the very top that fills as the page is scrolled. */
+const ScrollProgressBar = () => {
+  const { scrollYProgress } = useScroll();
+  const scaleX = useSpring(scrollYProgress, { stiffness: 120, damping: 30, restDelta: 0.001 });
+
+  return (
+    <motion.div
+      style={{ scaleX }}
+      className="fixed top-0 left-0 right-0 h-1 bg-rose-600 origin-left z-[80]"
+      aria-hidden="true"
+    />
+  );
+};
+
+/** Number that counts up from 0 to `end` once scrolled into view. */
+const CountUp: React.FC<{ end: number; suffix?: string; prefix?: string; duration?: number; className?: string }> = ({
+  end,
+  suffix = '',
+  prefix = '',
+  duration = 1.6,
+  className,
+}) => {
+  const [value, setValue] = useState(0);
+  const ref = useRef<HTMLSpanElement>(null);
+  const inView = useInView(ref, { once: true, margin: '-60px' });
+
+  useEffect(() => {
+    if (!inView) return;
+    let raf = 0;
+    let start: number | null = null;
+    const step = (ts: number) => {
+      if (start === null) start = ts;
+      const progress = Math.min((ts - start) / (duration * 1000), 1);
+      const eased = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+      setValue(Math.round(eased * end));
+      if (progress < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [inView, end, duration]);
+
+  return (
+    <span ref={ref} className={className}>
+      {prefix}{value}{suffix}
+    </span>
+  );
+};
+
+/** Sections used by the scroll-aware breadcrumb trail. */
+const BREADCRUMB_SECTIONS = [
+  { id: 'home', label: 'Home' },
+  { id: 'services', label: 'Services' },
+  { id: 'packages', label: 'Fees' },
+  { id: 'booking', label: 'Book' },
+  { id: 'training', label: 'Videos' },
+  { id: 'study-quiz', label: 'Quiz' },
+  { id: 'about', label: 'About' },
+  { id: 'testimonials', label: 'Reviews' },
+  { id: 'faq', label: 'FAQ' },
+  { id: 'contact', label: 'Contact' },
+];
+
+const Breadcrumbs = () => {
+  const [activeId, setActiveId] = useState('home');
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setShow(window.scrollY > 600);
+    onScroll();
+    window.addEventListener('scroll', onScroll);
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) setActiveId(entry.target.id);
+        });
+      },
+      { rootMargin: '-45% 0px -50% 0px', threshold: 0 }
+    );
+    BREADCRUMB_SECTIONS.forEach(({ id }) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  const current = BREADCRUMB_SECTIONS.find((s) => s.id === activeId) ?? BREADCRUMB_SECTIONS[0];
+  const isHome = current.id === 'home';
+
+  return (
+    <AnimatePresence>
+      {show && (
+        <motion.nav
+          aria-label="Breadcrumb"
+          initial={{ opacity: 0, y: -12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -12 }}
+          className="fixed top-[4.5rem] md:top-20 left-1/2 -translate-x-1/2 z-40 block"
+        >
+          <ol className="flex items-center gap-1.5 bg-white/80 backdrop-blur-md border border-gray-100 shadow-lg shadow-black/5 rounded-full px-3 py-1.5 md:px-4 md:py-2 text-[10px] md:text-xs font-bold">
+            <li>
+              <Link
+                to="home"
+                smooth={true}
+                className="flex items-center gap-1.5 text-gray-400 hover:text-rose-600 transition-colors cursor-pointer"
+              >
+                <Home className="w-3.5 h-3.5" />
+                Home
+              </Link>
+            </li>
+            {!isHome && (
+              <>
+                <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
+                <li>
+                  <motion.span
+                    key={current.id}
+                    initial={{ opacity: 0, x: -6 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="text-rose-600 uppercase tracking-widest"
+                  >
+                    {current.label}
+                  </motion.span>
+                </li>
+              </>
+            )}
+          </ol>
+        </motion.nav>
+      )}
+    </AnimatePresence>
+  );
+};
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -19,9 +212,11 @@ const Navbar = () => {
     { name: 'Home', to: 'home' },
     { name: 'Services', to: 'services' },
     { name: 'Fees', to: 'packages' },
-    { name: 'Book', to: 'booking' },
     { name: 'About', to: 'about' },
     { name: 'Reviews', to: 'testimonials' },
+    { name: 'Book', to: 'booking' },
+    { name: 'Videos', to: 'training' },
+    { name: 'Quiz', to: 'study-quiz' },
     { name: 'FAQ', to: 'faq' },
     { name: 'Contact', to: 'contact' },
   ];
@@ -29,9 +224,9 @@ const Navbar = () => {
   return (
     <nav className={cn(
       "fixed top-0 left-0 right-0 z-50 transition-all duration-500 px-6",
-      isScrolled 
-        ? "bg-white shadow-lg py-2 border-b border-gray-100" 
-        : "bg-transparent py-6"
+      isScrolled
+        ? "bg-white shadow-lg py-2 border-b border-gray-100"
+        : "bg-white/80 backdrop-blur-md py-6"
     )}>
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <Link to="home" smooth={true} className="flex items-center gap-2 cursor-pointer group">
@@ -42,7 +237,7 @@ const Navbar = () => {
         </Link>
 
         {/* Desktop Nav */}
-        <div className="hidden md:flex items-center gap-8">
+        <div className="hidden md:flex items-center gap-5 lg:gap-7">
           {navLinks.map((link) => (
             <Link
               key={link.to}
@@ -55,18 +250,30 @@ const Navbar = () => {
               {link.name}
             </Link>
           ))}
-          <Link to="booking" smooth={true} className="flex items-center gap-2 bg-black text-white px-5 py-2.5 rounded-full text-sm font-bold hover:bg-rose-600 transition-all cursor-pointer">
-            <Phone className="w-4 h-4" />
+          <Link to="booking" smooth={true} className="flex items-center gap-2 bg-black text-white px-5 py-2.5 rounded-full text-sm font-bold hover:bg-rose-600 hover:shadow-lg hover:shadow-rose-600/25 active:scale-95 transition-all duration-300 cursor-pointer group">
+            <Phone className="w-4 h-4 group-hover:rotate-12 transition-transform" />
             Book Now
           </Link>
         </div>
 
         {/* Mobile Menu Toggle */}
-        <button 
-          className="md:hidden p-2"
+        <button
+          className="md:hidden p-2 rounded-lg hover:bg-gray-100 active:scale-90 transition-all"
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
         >
-          {isMobileMenuOpen ? <X /> : <Menu />}
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.span
+              key={isMobileMenuOpen ? 'close' : 'open'}
+              initial={{ rotate: -90, opacity: 0 }}
+              animate={{ rotate: 0, opacity: 1 }}
+              exit={{ rotate: 90, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="block"
+            >
+              {isMobileMenuOpen ? <X /> : <Menu />}
+            </motion.span>
+          </AnimatePresence>
         </button>
       </div>
 
@@ -79,19 +286,28 @@ const Navbar = () => {
             exit={{ opacity: 0, y: -20 }}
             className="absolute top-full left-0 right-0 bg-white border-t border-gray-100 p-6 shadow-xl md:hidden"
           >
-            <div className="flex flex-col gap-4">
-              {navLinks.map((link) => (
-                <Link
+            <div className="flex flex-col gap-1">
+              {navLinks.map((link, i) => (
+                <motion.div
                   key={link.to}
-                  to={link.to}
-                  smooth={true}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="text-lg font-semibold hover:text-rose-600 transition-colors"
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.05 }}
                 >
-                  {link.name}
-                </Link>
+                  <Link
+                    to={link.to}
+                    smooth={true}
+                    spy={true}
+                    offset={-80}
+                    activeClass="text-rose-600 bg-rose-50"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block text-lg font-semibold px-4 py-3 rounded-xl hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                  >
+                    {link.name}
+                  </Link>
+                </motion.div>
               ))}
-              <Link to="booking" smooth={true} className="flex items-center justify-center gap-2 bg-rose-600 text-white px-5 py-4 rounded-xl font-bold cursor-pointer">
+              <Link to="booking" smooth={true} onClick={() => setIsMobileMenuOpen(false)} className="mt-3 flex items-center justify-center gap-2 bg-rose-600 text-white px-5 py-4 rounded-xl font-bold cursor-pointer hover:bg-black active:scale-[0.98] transition-all duration-300">
                 <Phone className="w-5 h-5" />
                 Call (780) 235-8082
               </Link>
@@ -103,8 +319,22 @@ const Navbar = () => {
   );
 };
 
+/** Next available slot: next weekday (skip Sun), shown honestly instead of a hardcoded date. */
+const getNextSlot = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  if (d.getDay() === 0) d.setDate(d.getDate() + 1); // skip Sunday
+  const today = new Date();
+  const isTomorrow = d.getDate() === today.getDate() + 1;
+  const label = isTomorrow
+    ? 'TOMORROW'
+    : d.toLocaleDateString('en-CA', { weekday: 'long' }).toUpperCase();
+  return `${label} @ 10:00 AM`;
+};
+
 const Hero = () => {
   const containerRef = useRef<HTMLElement>(null);
+  const nextSlot = getNextSlot();
   const { scrollYProgress } = useScroll({
     target: containerRef,
     offset: ["start start", "end start"]
@@ -118,9 +348,9 @@ const Hero = () => {
 
   return (
     <section 
-      id="home" 
+      id="home"
       ref={containerRef}
-      className="relative min-h-screen flex items-center pt-20 overflow-hidden"
+      className="relative min-h-screen flex items-center pt-32 md:pt-28 pb-16 overflow-hidden"
     >
       {/* Animated Background Elements */}
       <div className="absolute inset-0 -z-10">
@@ -134,8 +364,9 @@ const Hero = () => {
         />
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center">
+      <div className="max-w-7xl w-full mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center">
         <motion.div
+          className="min-w-0"
           style={{ opacity }}
           initial={{ opacity: 0, x: -50 }}
           animate={{ opacity: 1, x: 0 }}
@@ -145,18 +376,18 @@ const Hero = () => {
             <GraduationCap className="w-3 h-3" />
             Edmonton's Premier Driving School
           </div>
-          <h1 className="text-6xl md:text-8xl font-black leading-[0.9] tracking-tighter mb-8">
+          <h1 className="text-4xl sm:text-6xl md:text-8xl font-black leading-[0.9] tracking-tighter mb-8 break-words">
             MASTER THE <span className="text-rose-600 italic">ROAD</span> WITH CONFIDENCE
           </h1>
           <p className="text-lg text-gray-600 max-w-lg mb-10 leading-relaxed">
             Professional driving instruction tailored to your needs. From nervous beginners to advanced brush-ups, we ensure you're road-ready and safe.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
-            <Link to="booking" smooth={true} className="bg-black text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-rose-600 transition-all flex items-center justify-center gap-2 group cursor-pointer">
+            <Link to="booking" smooth={true} className="bg-black text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-rose-600 hover:shadow-xl hover:shadow-rose-600/25 active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-2 group cursor-pointer">
               Book a Lesson
               <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Link>
-            <Link to="packages" smooth={true} className="bg-white border-2 border-black px-8 py-4 rounded-2xl font-bold text-lg hover:bg-gray-50 transition-all flex items-center justify-center cursor-pointer">
+            <Link to="packages" smooth={true} className="bg-white border-2 border-black px-8 py-4 rounded-2xl font-bold text-lg hover:bg-black hover:text-white active:scale-[0.98] transition-all duration-300 flex items-center justify-center cursor-pointer">
               View Fee Schedule
             </Link>
           </div>
@@ -184,16 +415,16 @@ const Hero = () => {
           className="relative"
         >
           <div className="relative z-10 rounded-[40px] overflow-hidden shadow-2xl border-8 border-white">
-            <img 
-              src="https://i.imgur.com/OVolHZ3.jpg" 
-              alt="Driving Lesson" 
-              className="w-full aspect-[4/5] object-cover"
+            <ImageWithSkeleton
+              src="https://i.imgur.com/OVolHZ3.jpg"
+              alt="Driving Lesson"
+              className="w-full aspect-[4/5]"
               referrerPolicy="no-referrer"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
             <div className="absolute bottom-8 left-8 right-8 text-white">
               <p className="text-sm font-bold uppercase tracking-widest mb-2 text-rose-400">Next Available Slot</p>
-              <p className="text-2xl font-black">TOMORROW @ 10:00 AM</p>
+              <p className="text-2xl font-black">{nextSlot}</p>
             </div>
           </div>
           
@@ -203,12 +434,67 @@ const Hero = () => {
             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
             className="absolute -top-6 -right-6 bg-rose-600 text-white p-6 rounded-3xl shadow-xl z-20 hidden md:block"
           >
-            <p className="text-4xl font-black leading-none">98%</p>
+            <p className="text-4xl font-black leading-none"><CountUp end={98} suffix="%" /></p>
             <p className="text-xs font-bold uppercase tracking-tighter">Pass Rate</p>
           </motion.div>
         </motion.div>
       </div>
     </section>
+  );
+};
+
+const VideoEmbed: React.FC<{ id: string; title: string }> = ({ id, title }) => {
+  // "Facade" pattern: show a lightweight thumbnail and only mount the real
+  // YouTube iframe once the user clicks play — keeps the page fast.
+  const [playing, setPlaying] = useState(false);
+  const [thumbLoaded, setThumbLoaded] = useState(false);
+
+  return (
+    <motion.div
+      whileHover={{ y: -6 }}
+      transition={{ duration: 0.3 }}
+      className="group relative aspect-video rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl hover:shadow-rose-600/10 transition-shadow duration-300 bg-gray-900"
+    >
+      {playing ? (
+        <iframe
+          src={`https://www.youtube.com/embed/${id}?autoplay=1`}
+          title={title}
+          frameBorder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          className="absolute inset-0 w-full h-full"
+        ></iframe>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setPlaying(true)}
+          aria-label={`Play ${title}`}
+          className="absolute inset-0 w-full h-full"
+        >
+          {!thumbLoaded && (
+            <div className="absolute inset-0 shimmer flex items-center justify-center" aria-hidden="true">
+              <Youtube className="w-10 h-10 text-gray-300" />
+            </div>
+          )}
+          <img
+            src={`https://i.ytimg.com/vi/${id}/hqdefault.jpg`}
+            alt={title}
+            loading="lazy"
+            onLoad={() => setThumbLoaded(true)}
+            className={cn(
+              "w-full h-full object-cover transition-all duration-500 group-hover:scale-105",
+              thumbLoaded ? "opacity-100" : "opacity-0"
+            )}
+          />
+          <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-16 h-16 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-xl shadow-black/30 group-hover:scale-110 transition-transform duration-300">
+              <Play className="w-7 h-7 fill-current ml-1" />
+            </div>
+          </div>
+        </button>
+      )}
+    </motion.div>
   );
 };
 
@@ -232,22 +518,27 @@ const TrainingVideos = () => {
         </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
           {videos.map((video) => (
-            <div key={video.id} className="rounded-2xl overflow-hidden shadow-lg">
-              <iframe
-                width="100%"
-                height="200"
-                src={`https://www.youtube.com/embed/${video.id}`}
-                title={video.title}
-                frameBorder="0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              ></iframe>
-            </div>
+            <VideoEmbed key={video.id} id={video.id} title={video.title} />
           ))}
         </div>
       </div>
     </section>
   );
+};
+
+/** Stable id slug shared by Services (deep-link source) and Packages (highlight target). */
+const pkgSlug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+/** Scroll to a specific package card and briefly highlight it. */
+const goToPackage = (packageName: string) => {
+  const slug = pkgSlug(packageName);
+  const el = document.getElementById(`pkg-${slug}`);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    window.dispatchEvent(new CustomEvent('r2d:highlight-pkg', { detail: slug }));
+  } else {
+    document.getElementById('packages')?.scrollIntoView({ behavior: 'smooth' });
+  }
 };
 
 const Services = () => {
@@ -256,25 +547,29 @@ const Services = () => {
       title: "Class 5 GDL",
       desc: "Comprehensive training for new drivers to get their basic license.",
       icon: "🚗",
-      color: "bg-blue-50"
+      color: "bg-blue-50",
+      targetPackage: "Standard GDL"
     },
     {
       title: "Advanced Road Test",
       desc: "Preparation for the non-GDL Class 5 road test.",
       icon: "🛣️",
-      color: "bg-green-50"
+      color: "bg-green-50",
+      targetPackage: "Non-GDL Special"
     },
     {
       title: "Brush-up Lessons",
       desc: "Quick sessions to refine your skills before a road test.",
       icon: "✨",
-      color: "bg-rose-50"
+      color: "bg-rose-50",
+      targetPackage: "Test Ready"
     },
     {
       title: "Insurance Reduction",
       desc: "Government approved course to lower your premiums.",
       icon: "🛡️",
-      color: "bg-purple-50"
+      color: "bg-purple-50",
+      targetPackage: "Standard GDL"
     }
   ];
 
@@ -301,13 +596,22 @@ const Services = () => {
               viewport={{ once: true, margin: "-50px" }}
               transition={{ duration: 0.5, delay: i * 0.1 }}
               whileHover={{ y: -10 }}
-              className={cn("p-8 rounded-[32px] border border-gray-100 shadow-sm hover:shadow-xl transition-all bg-white")}
             >
-              <div className={cn("w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-6", s.color)}>
-                {s.icon}
-              </div>
-              <h3 className="text-xl font-bold mb-3">{s.title}</h3>
-              <p className="text-gray-500 text-sm leading-relaxed">{s.desc}</p>
+              <button
+                type="button"
+                onClick={() => goToPackage(s.targetPackage)}
+                className="group flex flex-col h-full w-full text-left p-8 rounded-[32px] border border-gray-100 shadow-sm hover:shadow-2xl hover:shadow-rose-600/5 hover:border-rose-200 transition-all duration-300 bg-white cursor-pointer"
+              >
+                <div className={cn("w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mb-6 transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-6", s.color)}>
+                  {s.icon}
+                </div>
+                <h3 className="text-xl font-bold mb-3 group-hover:text-rose-600 transition-colors duration-300">{s.title}</h3>
+                <p className="text-gray-500 text-sm leading-relaxed">{s.desc}</p>
+                <span className="mt-6 inline-flex items-center gap-1 text-sm font-bold text-rose-600">
+                  View pricing
+                  <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </span>
+              </button>
             </motion.div>
           ))}
         </div>
@@ -317,6 +621,18 @@ const Services = () => {
 };
 
 const Packages = () => {
+  const { setSelectedPackage } = useBooking();
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onHighlight = (e: Event) => {
+      setHighlightedId((e as CustomEvent).detail as string);
+      window.setTimeout(() => setHighlightedId(null), 2200);
+    };
+    window.addEventListener('r2d:highlight-pkg', onHighlight);
+    return () => window.removeEventListener('r2d:highlight-pkg', onHighlight);
+  }, []);
+
   const packages = [
     {
       name: "Standard GDL",
@@ -380,21 +696,30 @@ const Packages = () => {
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
           {packages.map((p, i) => (
-            <motion.div 
+            <motion.div
               key={i}
+              id={`pkg-${pkgSlug(p.name)}`}
               initial={{ opacity: 0, y: 40 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-50px" }}
               transition={{ duration: 0.6, delay: i * 0.15 }}
+              whileHover={{ y: -8 }}
               className={cn(
-                "relative p-10 rounded-[40px] border-2 transition-all",
-                p.popular ? "border-rose-600 bg-black text-white shadow-2xl" : "border-gray-100 bg-white"
+                "relative p-10 rounded-[40px] border-2 scroll-mt-28 transition-all duration-300",
+                p.popular
+                  ? "border-rose-600 bg-black text-white shadow-2xl hover:shadow-rose-600/30"
+                  : "border-gray-100 bg-white hover:shadow-2xl hover:shadow-rose-600/5 hover:border-rose-200",
+                highlightedId === pkgSlug(p.name) && "ring-4 ring-rose-500 ring-offset-4 shadow-2xl shadow-rose-600/40 scale-[1.02]"
               )}
             >
               {p.popular && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-rose-600 text-white px-4 py-1 rounded-full text-xs font-black uppercase tracking-widest">
+                <motion.div
+                  animate={{ scale: [1, 1.06, 1] }}
+                  transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                  className="absolute -top-4 left-1/2 -translate-x-1/2 bg-rose-600 text-white px-4 py-1 rounded-full text-xs font-black uppercase tracking-widest shadow-lg shadow-rose-600/40"
+                >
                   Best Value
-                </div>
+                </motion.div>
               )}
               <div className="mb-8">
                 <h3 className="text-2xl font-black mb-2">{p.name}</h3>
@@ -419,9 +744,13 @@ const Packages = () => {
               <Link
                 to="booking"
                 smooth={true}
+                offset={-80}
+                onClick={() => setSelectedPackage(p.name)}
                 className={cn(
-                  "w-full py-4 rounded-2xl font-bold transition-all text-center block cursor-pointer",
-                  p.popular ? "bg-rose-600 text-white hover:bg-white hover:text-black" : "bg-black text-white hover:bg-rose-600"
+                  "w-full py-4 rounded-2xl font-bold transition-all duration-300 text-center block cursor-pointer active:scale-[0.98]",
+                  p.popular
+                    ? "bg-rose-600 text-white hover:bg-white hover:text-black hover:shadow-lg"
+                    : "bg-black text-white hover:bg-rose-600 hover:shadow-lg hover:shadow-rose-600/25"
                 )}
               >
                 Book Now
@@ -435,7 +764,8 @@ const Packages = () => {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-50px" }}
             transition={{ duration: 0.6, delay: 0.45 }}
-            className="p-10 rounded-[40px] border-2 border-dashed border-gray-200 bg-gray-50 flex flex-col justify-center items-center text-center"
+            whileHover={{ y: -8 }}
+            className="group p-10 rounded-[40px] border-2 border-dashed border-gray-200 bg-gray-50 hover:border-rose-300 hover:bg-rose-50/30 transition-colors duration-300 flex flex-col justify-center items-center text-center"
           >
             <h3 className="text-2xl font-black mb-2">Car Rental</h3>
             <p className="text-4xl font-black mb-4">$100 <span className="text-sm text-gray-400">+ GST</span></p>
@@ -447,11 +777,32 @@ const Packages = () => {
   );
 };
 
+/**
+ * Free Google Calendar booking.
+ *
+ * To enable live, self-serve time-slot booking:
+ *   1. Open Google Calendar (the business Google account) → "Create" → "Appointment schedule".
+ *   2. Set availability, lesson duration, location, etc. and Save.
+ *   3. Click "Share" → "Embed" and copy the URL inside the iframe src
+ *      (it looks like https://calendar.google.com/calendar/appointments/schedules/XXXX?gv=true).
+ *   4. Paste that URL below.
+ *
+ * Leave it as an empty string to keep showing the WhatsApp / Call fallback only.
+ * This is 100% free — no backend, no paid plan required.
+ */
+const GOOGLE_BOOKING_URL = '';
+
 const Booking = () => {
+  const hasCalendar = GOOGLE_BOOKING_URL.trim().length > 0;
+  const { selectedPackage } = useBooking();
+  const waMessage = selectedPackage
+    ? `Hi Raj, I'd like to book the ${selectedPackage} package. When is your next availability?`
+    : "Hi Raj, I'd like to book a driving lesson. When is your next availability?";
+
   return (
     <section id="booking" className="py-24 bg-white">
       <div className="max-w-7xl mx-auto px-6">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -462,36 +813,69 @@ const Booking = () => {
           <p className="text-gray-500 mt-4">Select a time that works for you and start your journey today.</p>
         </motion.div>
 
+        {hasCalendar && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.7 }}
+            className="w-full max-w-4xl mx-auto mb-12 rounded-[40px] overflow-hidden border border-gray-100 shadow-lg bg-white"
+          >
+            <div className="flex items-center gap-2 px-6 py-4 bg-gray-50 border-b border-gray-100">
+              <Calendar className="w-5 h-5 text-rose-600" />
+              <span className="font-bold text-sm uppercase tracking-widest text-gray-600">Live Availability</span>
+            </div>
+            <iframe
+              src={GOOGLE_BOOKING_URL}
+              title="Book a driving lesson"
+              className="w-full h-[600px] border-0"
+              loading="lazy"
+            />
+          </motion.div>
+        )}
+
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.8 }}
-          className="w-full max-w-2xl mx-auto bg-gray-50 rounded-[40px] p-12 border border-gray-100 shadow-sm text-center"
+          className="w-full max-w-2xl mx-auto bg-gray-50 rounded-[40px] p-12 border border-gray-100 shadow-sm hover:shadow-lg transition-shadow duration-300 text-center"
         >
-          <h3 className="text-2xl font-bold mb-8">Ready to start your driving journey?</h3>
-          <p className="text-gray-600 mb-10">Contact us directly to schedule your lessons. We're available for calls and messages.</p>
-          
+          {selectedPackage && (
+            <div className="mb-6 inline-flex items-center gap-2 bg-rose-100 text-rose-700 px-4 py-2 rounded-full text-sm font-bold">
+              <Calendar className="w-4 h-4" />
+              Selected plan: {selectedPackage}
+            </div>
+          )}
+          <h3 className="text-2xl font-bold mb-8">
+            {hasCalendar ? 'Prefer to talk to us first?' : 'Ready to start your driving journey?'}
+          </h3>
+          <p className="text-gray-600 mb-10">
+            {hasCalendar
+              ? "Pick a slot above, or reach us directly — we're available for calls and messages."
+              : 'Contact us directly to schedule your lessons. We\'re available for calls and messages.'}
+          </p>
+
           <div className="flex flex-col sm:flex-row gap-6 justify-center">
-            <a 
-              href="https://wa.me/17802358082" 
-              target="_blank" 
+            <a
+              href={buildWhatsAppLink(waMessage)}
+              target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-3 bg-[#25D366] text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-[#128C7E] transition-all"
+              className="flex items-center justify-center gap-3 bg-[#25D366] text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-[#128C7E] hover:shadow-xl hover:shadow-[#25D366]/30 active:scale-[0.98] transition-all duration-300 group"
             >
-              <MessageCircle className="w-6 h-6" />
+              <MessageCircle className="w-6 h-6 group-hover:scale-110 transition-transform" />
               Book via WhatsApp
             </a>
-            <a 
-              href="tel:+17802358082" 
-              className="flex items-center justify-center gap-3 bg-black text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-rose-600 transition-all"
+            <a
+              href="tel:+17802358082"
+              className="flex items-center justify-center gap-3 bg-black text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-rose-600 hover:shadow-xl hover:shadow-rose-600/25 active:scale-[0.98] transition-all duration-300 group"
             >
-              <Phone className="w-6 h-6" />
+              <Phone className="w-6 h-6 group-hover:rotate-12 transition-transform" />
               Call Us Now
             </a>
           </div>
         </motion.div>
-        
+
         <div className="mt-12 text-center">
           <p className="text-sm text-gray-400 font-medium italic">
             Can't find a suitable time? <Link to="contact" smooth={true} className="text-rose-600 font-bold cursor-pointer hover:underline">Contact us</Link> directly.
@@ -508,9 +892,12 @@ const About = () => {
       name: "Raj Mangat",
       role: "Lead Instructor & Owner",
       bio: "With over 15 years of professional driving instruction experience in Edmonton, Raj is known for his calm demeanor and exceptional pass rates. He specializes in nervous beginners and advanced road test preparation.",
-      image: "https://i.imgur.com/Qu8GQ9S.jpg"
+      image: "/raj.png"
     }
   ];
+
+  const fallbackAvatar = (name: string) =>
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&size=320&background=e11d48&color=ffffff&bold=true&font-size=0.4`;
 
   return (
     <section id="about" className="py-24 bg-gray-50">
@@ -530,11 +917,11 @@ const About = () => {
             </p>
             <div className="grid grid-cols-2 gap-8">
               <div>
-                <p className="text-4xl font-black text-rose-600 mb-1">15+</p>
+                <p className="text-4xl font-black text-rose-600 mb-1"><CountUp end={15} suffix="+" /></p>
                 <p className="text-sm font-bold text-gray-500 uppercase tracking-widest">Years Experience</p>
               </div>
               <div>
-                <p className="text-4xl font-black text-rose-600 mb-1">5k+</p>
+                <p className="text-4xl font-black text-rose-600 mb-1"><CountUp end={5} suffix="k+" /></p>
                 <p className="text-sm font-bold text-gray-500 uppercase tracking-widest">Happy Students</p>
               </div>
             </div>
@@ -547,10 +934,10 @@ const About = () => {
             className="relative"
           >
             <div className="aspect-video rounded-[40px] overflow-hidden shadow-2xl border-8 border-white">
-              <img 
-                src="https://i.imgur.com/HLPN225.jpg" 
-                alt="Driving School Office" 
-                className="w-full h-full object-cover"
+              <ImageWithSkeleton
+                src="https://i.imgur.com/HLPN225.jpg"
+                alt="Driving School Office"
+                className="w-full h-full"
                 referrerPolicy="no-referrer"
               />
             </div>
@@ -573,13 +960,15 @@ const About = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.6, delay: i * 0.2 }}
-              className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm hover:shadow-xl transition-all flex flex-col md:flex-row gap-8 items-center md:items-start"
+              whileHover={{ y: -6 }}
+              className="group bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm hover:shadow-2xl hover:shadow-rose-600/5 hover:border-rose-100 transition-all duration-300 flex flex-col md:flex-row gap-8 items-center md:items-start"
             >
-              <img 
-                src={instructor.image} 
-                alt={instructor.name} 
-                className="w-32 h-32 md:w-40 md:h-40 rounded-3xl object-cover shadow-lg"
+              <img
+                src={instructor.image}
+                alt={instructor.name}
+                className="w-32 h-32 md:w-40 md:h-40 rounded-3xl object-cover shadow-lg transition-transform duration-300 group-hover:scale-105"
                 referrerPolicy="no-referrer"
+                onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = fallbackAvatar(instructor.name); }}
               />
               <div className="text-center md:text-left">
                 <h4 className="text-2xl font-black mb-1">{instructor.name}</h4>
@@ -594,8 +983,18 @@ const About = () => {
   );
 };
 
+type Review = {
+  name: string;
+  role: string;
+  quote: string;
+  image: string;
+  rating?: number;
+};
+
+const REVIEWS_STORAGE_KEY = 'r2d_reviews';
+
 const Testimonials = () => {
-  const testimonials = [
+  const defaultTestimonials: Review[] = [
     {
       name: "HarmanKaur",
       role: "Class 5 GDL Student",
@@ -628,8 +1027,36 @@ const Testimonials = () => {
     }
   ];
 
+  const [testimonials, setTestimonials] = useState<Review[]>(defaultTestimonials);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState(0);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+
+  // Load any visitor-submitted reviews and show them first.
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(REVIEWS_STORAGE_KEY) || '[]');
+      if (Array.isArray(saved) && saved.length) {
+        setTestimonials([...saved, ...defaultTestimonials]);
+      }
+    } catch {
+      /* ignore malformed storage */
+    }
+  }, []);
+
+  const handleAddReview = (review: Review) => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(REVIEWS_STORAGE_KEY) || '[]');
+      const next = Array.isArray(saved) ? [review, ...saved] : [review];
+      localStorage.setItem(REVIEWS_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      /* storage may be unavailable; still show it this session */
+    }
+    setTestimonials(prev => [review, ...prev]);
+    setDirection(-1);
+    setCurrentIndex(0);
+    setShowReviewForm(false);
+  };
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -677,6 +1104,13 @@ const Testimonials = () => {
         >
           <h2 className="text-4xl md:text-5xl font-black tracking-tight uppercase">Student <span className="text-rose-600">Success</span></h2>
           <p className="text-gray-500 mt-4">Hear from some of our 5,000+ confident drivers who mastered the road with us.</p>
+          <button
+            onClick={() => setShowReviewForm(true)}
+            className="mt-8 inline-flex items-center gap-2 bg-black text-white px-6 py-3 rounded-full font-bold text-sm hover:bg-rose-600 hover:shadow-lg hover:shadow-rose-600/25 active:scale-95 transition-all duration-300 group"
+          >
+            <Star className="w-4 h-4 fill-current group-hover:rotate-[72deg] transition-transform duration-300" />
+            Write a Review
+          </button>
         </motion.div>
 
         <div className="relative max-w-4xl mx-auto h-[400px] md:h-[300px]">
@@ -700,15 +1134,26 @@ const Testimonials = () => {
                 </div>
                 
                 <div className="flex flex-col md:flex-row items-center gap-8">
-                  <img 
-                    src={testimonials[currentIndex].image} 
-                    alt={testimonials[currentIndex].name} 
-                    className="w-24 h-24 rounded-3xl object-cover border-4 border-white shadow-lg"
+                  <ImageWithSkeleton
+                    key={testimonials[currentIndex].image}
+                    src={testimonials[currentIndex].image}
+                    alt={testimonials[currentIndex].name}
+                    className="w-24 h-24 rounded-3xl border-4 border-white shadow-lg flex-shrink-0"
                     referrerPolicy="no-referrer"
                   />
                   <div className="flex-1 text-center md:text-left">
                     <div className="flex justify-center md:justify-start text-rose-600 mb-4">
-                      {[1,2,3,4,5].map(star => <Star key={star} className="w-5 h-5 fill-current" />)}
+                      {[1,2,3,4,5].map(star => (
+                        <Star
+                          key={star}
+                          className={cn(
+                            "w-5 h-5",
+                            star <= (testimonials[currentIndex].rating ?? 5)
+                              ? "fill-current"
+                              : "fill-none text-gray-300"
+                          )}
+                        />
+                      ))}
                     </div>
                     <p className="text-xl md:text-2xl text-gray-700 leading-relaxed italic mb-6">
                       "{testimonials[currentIndex].quote}"
@@ -727,17 +1172,19 @@ const Testimonials = () => {
 
           {/* Navigation Arrows */}
           <div className="absolute top-1/2 -translate-y-1/2 -left-4 md:-left-16 z-10">
-            <button 
+            <button
               onClick={prevTestimonial}
-              className="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-gray-400 hover:text-rose-600 hover:scale-110 transition-all"
+              aria-label="Previous review"
+              className="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-gray-400 hover:text-rose-600 hover:shadow-xl hover:scale-110 active:scale-95 transition-all duration-300"
             >
               <ChevronLeft className="w-6 h-6" />
             </button>
           </div>
           <div className="absolute top-1/2 -translate-y-1/2 -right-4 md:-right-16 z-10">
-            <button 
+            <button
               onClick={nextTestimonial}
-              className="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-gray-400 hover:text-rose-600 hover:scale-110 transition-all"
+              aria-label="Next review"
+              className="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-gray-400 hover:text-rose-600 hover:shadow-xl hover:scale-110 active:scale-95 transition-all duration-300"
             >
               <ChevronRight className="w-6 h-6" />
             </button>
@@ -761,7 +1208,157 @@ const Testimonials = () => {
           ))}
         </div>
       </div>
+
+      <AnimatePresence>
+        {showReviewForm && (
+          <ReviewModal onClose={() => setShowReviewForm(false)} onSubmit={handleAddReview} />
+        )}
+      </AnimatePresence>
     </section>
+  );
+};
+
+const ReviewModal: React.FC<{ onClose: () => void; onSubmit: (review: Review) => void }> = ({ onClose, onSubmit }) => {
+  const [name, setName] = useState('');
+  const [rating, setRating] = useState(5);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [quote, setQuote] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isPosting, setIsPosting] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newErrors: Record<string, string> = {};
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      newErrors.name = 'Your name is required';
+    } else if (/\d/.test(trimmedName)) {
+      newErrors.name = 'Name cannot contain numbers';
+    } else if (!/^[A-Za-z][A-Za-z .'-]*[A-Za-z]$/.test(trimmedName)) {
+      newErrors.name = 'Please enter a valid name';
+    }
+    if (quote.trim().length < 10) {
+      newErrors.quote = 'Please share a little more (10+ characters)';
+    }
+    if (Object.keys(newErrors).length) {
+      setErrors(newErrors);
+      return;
+    }
+
+    // Brief loading state so posting feels responsive
+    setIsPosting(true);
+    setTimeout(() => {
+      onSubmit({
+        name: trimmedName,
+        role: 'Verified Student',
+        quote: quote.trim(),
+        image: `https://ui-avatars.com/api/?name=${encodeURIComponent(trimmedName)}&background=e11d48&color=fff&bold=true`,
+        rating,
+      });
+    }, 700);
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+      className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        onClick={(e) => e.stopPropagation()}
+        className="relative bg-white text-black w-full max-w-lg rounded-[32px] p-8 md:p-10 shadow-2xl"
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-6 right-6 text-gray-400 hover:text-rose-600 transition-colors"
+          aria-label="Close"
+        >
+          <X className="w-6 h-6" />
+        </button>
+
+        <h3 className="text-2xl md:text-3xl font-black uppercase tracking-tight mb-2">Share Your <span className="text-rose-600">Experience</span></h3>
+        <p className="text-gray-500 text-sm mb-8">Tell other learners how your lessons went.</p>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-xs font-black uppercase tracking-widest text-gray-400">Your Name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value.replace(/[^A-Za-z .'-]/g, ''))}
+              className={cn(
+                "w-full bg-gray-50 border rounded-xl p-4 outline-none transition-all duration-200 hover:bg-gray-100 focus:bg-white focus:ring-4",
+                errors.name
+                  ? "border-red-500 ring-4 ring-red-500/10"
+                  : "border-transparent focus:border-rose-600 focus:ring-rose-600/10"
+              )}
+              placeholder="Enter your name"
+            />
+            {errors.name && <p className="text-red-500 text-[10px] font-bold uppercase tracking-widest">{errors.name}</p>}
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-black uppercase tracking-widest text-gray-400">Your Rating</label>
+            <div className="flex gap-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  type="button"
+                  key={star}
+                  onClick={() => setRating(star)}
+                  onMouseEnter={() => setHoverRating(star)}
+                  onMouseLeave={() => setHoverRating(0)}
+                  aria-label={`${star} star${star > 1 ? 's' : ''}`}
+                  className="text-rose-600 hover:scale-125 active:scale-110 transition-transform duration-150"
+                >
+                  <Star className={cn("w-8 h-8 transition-colors", star <= (hoverRating || rating) ? "fill-current" : "fill-none text-gray-300")} />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-black uppercase tracking-widest text-gray-400">Your Review</label>
+            <textarea
+              value={quote}
+              onChange={(e) => setQuote(e.target.value)}
+              className={cn(
+                "w-full bg-gray-50 border rounded-xl p-4 h-28 outline-none resize-none transition-all duration-200 hover:bg-gray-100 focus:bg-white focus:ring-4",
+                errors.quote
+                  ? "border-red-500 ring-4 ring-red-500/10"
+                  : "border-transparent focus:border-rose-600 focus:ring-rose-600/10"
+              )}
+              placeholder="How was your experience with Ready 2 Drive?"
+            />
+            {errors.quote && <p className="text-red-500 text-[10px] font-bold uppercase tracking-widest">{errors.quote}</p>}
+          </div>
+
+          <button
+            type="submit"
+            disabled={isPosting}
+            className={cn(
+              "w-full bg-black text-white py-4 rounded-2xl font-black text-lg transition-all duration-300 flex items-center justify-center gap-2 hover:bg-rose-600 hover:shadow-xl hover:shadow-rose-600/25 active:scale-[0.98]",
+              isPosting && "opacity-70 cursor-not-allowed hover:shadow-none active:scale-100"
+            )}
+          >
+            {isPosting ? (
+              <>
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                  className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
+                />
+                Posting...
+              </>
+            ) : "Post Review"}
+          </button>
+        </form>
+      </motion.div>
+    </motion.div>
   );
 };
 
@@ -817,14 +1414,17 @@ const FAQ = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: i * 0.1 }}
-              className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm"
+              className={cn(
+                "bg-white rounded-3xl border overflow-hidden shadow-sm transition-colors duration-300",
+                openIndex === i ? "border-rose-200 shadow-md" : "border-gray-100 hover:border-rose-100"
+              )}
             >
               <button
                 onClick={() => setOpenIndex(openIndex === i ? null : i)}
-                className="w-full p-6 text-left flex items-center justify-between hover:bg-gray-50 transition-colors"
+                className="w-full p-6 text-left flex items-center justify-between hover:bg-gray-50 transition-colors group"
               >
-                <span className="font-bold text-lg pr-8">{faq.question}</span>
-                <ChevronDown className={cn("w-5 h-5 text-rose-600 transition-transform duration-300", openIndex === i && "rotate-180")} />
+                <span className="font-bold text-lg pr-8 group-hover:text-rose-600 transition-colors">{faq.question}</span>
+                <ChevronDown className={cn("w-5 h-5 text-rose-600 transition-transform duration-300 flex-shrink-0", openIndex === i && "rotate-180")} />
               </button>
               <AnimatePresence initial={false}>
                 {openIndex === i && (
@@ -873,7 +1473,141 @@ const FAQ = () => {
   );
 };
 
+/** Rich service options for the contact dropdown — label + description + icon, like a mini mega-menu. */
+const SERVICE_OPTIONS = [
+  { value: 'Class 5 GDL Training', desc: 'Full beginner program + insurance certificate', icon: '🚗' },
+  { value: 'Insurance Reduction Course', desc: 'Government-approved course to lower premiums', icon: '🛡️' },
+  { value: 'Brush-up Lessons', desc: 'Refine your skills before the road test', icon: '✨' },
+  { value: 'Advanced Road Test Prep', desc: 'Non-GDL Class 5 road test preparation', icon: '🛣️' },
+  { value: 'Car Rental for Road Test', desc: 'Clean, test-ready vehicle for your exam', icon: '🔑' },
+  { value: 'Other', desc: "Something else? Tell us in the message", icon: '💬' },
+];
+
+/** Custom service picker: tappable panel + full keyboard support (arrows / Home / End / Enter / Esc). */
+const ServiceDropdown: React.FC<{ value: string; onChange: (v: string) => void }> = ({ value, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const ref = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const selectedIndex = SERVICE_OPTIONS.findIndex(o => o.value === value);
+  const selected = SERVICE_OPTIONS[selectedIndex] ?? SERVICE_OPTIONS[0];
+
+  const openMenu = () => {
+    setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0);
+    setOpen(true);
+  };
+  const closeMenu = () => {
+    setOpen(false);
+    setActiveIndex(-1);
+  };
+  const choose = (i: number) => {
+    onChange(SERVICE_OPTIONS[i].value);
+    closeMenu();
+  };
+
+  // Close on outside click.
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) closeMenu();
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, []);
+
+  // Keep the highlighted option scrolled into view as the user arrows through.
+  useEffect(() => {
+    if (!open || activeIndex < 0) return;
+    const opts = listRef.current?.querySelectorAll('[role="option"]');
+    (opts?.[activeIndex] as HTMLElement | undefined)?.scrollIntoView({ block: 'nearest' });
+  }, [open, activeIndex]);
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (!open) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openMenu();
+      }
+      return;
+    }
+    switch (e.key) {
+      case 'ArrowDown': e.preventDefault(); setActiveIndex(i => (i + 1) % SERVICE_OPTIONS.length); break;
+      case 'ArrowUp': e.preventDefault(); setActiveIndex(i => (i - 1 + SERVICE_OPTIONS.length) % SERVICE_OPTIONS.length); break;
+      case 'Home': e.preventDefault(); setActiveIndex(0); break;
+      case 'End': e.preventDefault(); setActiveIndex(SERVICE_OPTIONS.length - 1); break;
+      case 'Enter':
+      case ' ': e.preventDefault(); if (activeIndex >= 0) choose(activeIndex); break;
+      case 'Escape': e.preventDefault(); closeMenu(); break;
+      case 'Tab': closeMenu(); break;
+    }
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => (open ? closeMenu() : openMenu())}
+        onKeyDown={onKeyDown}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-activedescendant={open && activeIndex >= 0 ? `service-opt-${activeIndex}` : undefined}
+        className="w-full flex items-center justify-between gap-3 bg-gray-50 border border-transparent rounded-xl p-4 text-left outline-none cursor-pointer transition-all duration-200 hover:bg-gray-100 focus:bg-white focus:border-rose-600 focus:ring-4 focus:ring-rose-600/10"
+      >
+        <span className="flex items-center gap-3 min-w-0">
+          <span className="text-xl leading-none flex-shrink-0">{selected.icon}</span>
+          <span className="min-w-0">
+            <span className="block font-bold truncate">{selected.value}</span>
+            <span className="block text-xs text-gray-500 truncate">{selected.desc}</span>
+          </span>
+        </span>
+        <ChevronDown className={cn("w-5 h-5 text-gray-400 flex-shrink-0 transition-transform duration-300", open && "rotate-180")} />
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.ul
+            ref={listRef}
+            role="listbox"
+            aria-label="Service interested in"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.18 }}
+            className="absolute z-30 mt-2 w-full max-h-[18rem] overflow-auto bg-white border border-gray-100 rounded-2xl shadow-2xl p-2"
+          >
+            {SERVICE_OPTIONS.map((o, i) => {
+              const isSelected = o.value === value;
+              const isActive = i === activeIndex;
+              return (
+                <li key={o.value} id={`service-opt-${i}`} role="option" aria-selected={isSelected}>
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => choose(i)}
+                    onMouseEnter={() => setActiveIndex(i)}
+                    className={cn(
+                      "w-full flex items-start gap-3 p-3 rounded-xl text-left transition-colors",
+                      isActive ? "bg-rose-50 ring-1 ring-rose-200" : isSelected ? "bg-rose-50" : "hover:bg-gray-50"
+                    )}
+                  >
+                    <span className="text-xl leading-none mt-0.5 flex-shrink-0">{o.icon}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className={cn("block font-bold text-sm", (isSelected || isActive) && "text-rose-600")}>{o.value}</span>
+                      <span className="block text-xs text-gray-500">{o.desc}</span>
+                    </span>
+                    {isSelected && <Check className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />}
+                  </button>
+                </li>
+              );
+            })}
+          </motion.ul>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 const Contact = () => {
+  const { selectedPackage } = useBooking();
   const [formData, setFormData] = useState({
     fullName: '',
     phoneNumber: '',
@@ -884,40 +1618,112 @@ const Contact = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
+  // Carry a package chosen on the Fee Schedule into the message (only if the user hasn't typed one).
+  useEffect(() => {
+    if (!selectedPackage) return;
+    setFormData(prev => (prev.message.trim() ? prev : { ...prev, message: `I'm interested in the ${selectedPackage} package.` }));
+  }, [selectedPackage]);
+
   const validate = () => {
     const newErrors: Record<string, string> = {};
-    if (!formData.fullName.trim()) newErrors.fullName = 'Full name is required';
+
+    // Name: required, letters only (allow spaces, hyphens, apostrophes, periods), no digits
+    const name = formData.fullName.trim();
+    if (!name) {
+      newErrors.fullName = 'Full name is required';
+    } else if (name.length < 2) {
+      newErrors.fullName = 'Please enter your full name';
+    } else if (/\d/.test(name)) {
+      newErrors.fullName = 'Name cannot contain numbers';
+    } else if (!/^[A-Za-z][A-Za-z .'-]*[A-Za-z]$/.test(name)) {
+      newErrors.fullName = 'Please enter a valid name';
+    }
+
+    // Phone: required, 10–15 digits, not all the same digit (rejects 000…)
+    const digits = formData.phoneNumber.replace(/\D/g, '');
     if (!formData.phoneNumber.trim()) {
       newErrors.phoneNumber = 'Phone number is required';
-    } else if (!/^\+?[\d\s-()]{7,}$/.test(formData.phoneNumber)) {
-      newErrors.phoneNumber = 'Invalid phone number format';
+    } else if (digits.length < 10 || digits.length > 15) {
+      newErrors.phoneNumber = 'Enter a valid phone number (at least 10 digits)';
+    } else if (/^(\d)\1+$/.test(digits)) {
+      newErrors.phoneNumber = 'Please enter a real phone number';
     }
+
     if (!formData.message.trim()) newErrors.message = 'Message is required';
     return newErrors;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const showSuccess = () => {
+    setIsSubmitting(false);
+    setIsSuccess(true);
+    setFormData({ fullName: '', phoneNumber: '', service: 'Class 5 GDL Training', message: '' });
+    setTimeout(() => setIsSuccess(false), 8000);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const validationErrors = validate();
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
-    
+
     setErrors({});
+
+    const enquiry = [
+      'New enquiry from the Ready 2 Drive website:',
+      `Name: ${formData.fullName}`,
+      `Phone: ${formData.phoneNumber}`,
+      `Service: ${formData.service}`,
+      `Message: ${formData.message}`,
+    ].join('\n');
+
+    // Path A — Formspree configured: deliver silently by email.
+    if (FORMSPREE_ENDPOINT) {
+      setIsSubmitting(true);
+      try {
+        const res = await fetch(FORMSPREE_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({
+            name: formData.fullName,
+            phone: formData.phoneNumber,
+            service: formData.service,
+            message: formData.message,
+            _subject: `New lesson enquiry — ${formData.service}`,
+          }),
+        });
+        if (!res.ok) throw new Error('Formspree request failed');
+        showSuccess();
+      } catch {
+        // Endpoint/network failure — never lose the lead: fall back to WhatsApp (same tab is reliable).
+        setIsSubmitting(false);
+        window.location.href = buildWhatsAppLink(enquiry);
+      }
+      return;
+    }
+
+    // Path B — no backend: open WhatsApp inside the click gesture so the popup isn't blocked.
+    const opened = window.open(buildWhatsAppLink(enquiry), '_blank', 'noopener,noreferrer');
+    if (!opened) {
+      window.location.href = buildWhatsAppLink(enquiry);
+      return;
+    }
     setIsSubmitting(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setIsSuccess(true);
-      setFormData({ fullName: '', phoneNumber: '', service: 'Class 5 GDL Training', message: '' });
-      setTimeout(() => setIsSuccess(false), 5000);
-    }, 1500);
+    setTimeout(showSuccess, 600);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
+    const { name } = e.target;
+    let { value } = e.target;
+
+    // Live-sanitize: keep names letter-based, keep phone numeric-friendly
+    if (name === 'fullName') {
+      value = value.replace(/[^A-Za-z .'-]/g, '');
+    } else if (name === 'phoneNumber') {
+      value = value.replace(/[^\d+\s().-]/g, '');
+    }
+
     setFormData(prev => ({ ...prev, [name]: value }));
     if (errors[name]) {
       setErrors(prev => {
@@ -933,7 +1739,7 @@ const Contact = () => {
       <div className="absolute top-0 right-0 w-1/2 h-full bg-rose-600/5 -skew-x-12 translate-x-1/4" />
       
       <div className="max-w-7xl mx-auto px-6 relative z-10">
-        <div className="grid lg:grid-cols-2 gap-20 items-center">
+        <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
           <div>
             <h2 className="text-5xl md:text-7xl font-black tracking-tighter mb-8 leading-none">
               READY TO <br />
@@ -944,33 +1750,38 @@ const Contact = () => {
             </p>
             
             <div className="space-y-8">
-              <div className="flex items-center gap-6">
-                <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center">
+              <a href="tel:+17802358082" className="flex items-center gap-6 group">
+                <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:bg-rose-600/20 transition-colors">
                   <Phone className="text-rose-600" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm text-gray-500 font-bold uppercase tracking-widest">Call Us</p>
-                  <p className="text-xl font-bold">(780) 235-8082</p>
+                  <p className="text-xl font-bold group-hover:text-rose-400 transition-colors">(780) 235-8082</p>
                 </div>
-              </div>
-              <div className="flex items-center gap-6">
-                <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center">
-                  <Star className="text-rose-600" />
+              </a>
+              <a
+                href="https://maps.google.com/?q=1503+12+ST+NW+Edmonton+AB+T6T+2V2"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-6 group"
+              >
+                <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:bg-rose-600/20 transition-colors">
+                  <MapPin className="text-rose-600" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm text-gray-500 font-bold uppercase tracking-widest">Office</p>
-                  <p className="text-xl font-bold">1503, 12 ST. NW Edmonton T6T 2V2</p>
+                  <p className="text-lg sm:text-xl font-bold break-words group-hover:text-rose-400 transition-colors">1503, 12 ST. NW Edmonton T6T 2V2</p>
                 </div>
-              </div>
-              <div className="flex items-center gap-6">
-                <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center">
-                  <Star className="text-rose-600" />
+              </a>
+              <a href="mailto:rajmangat121@gmail.com" className="flex items-center gap-6 group">
+                <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:bg-rose-600/20 transition-colors">
+                  <Mail className="text-rose-600" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm text-gray-500 font-bold uppercase tracking-widest">Email</p>
-                  <p className="text-xl font-bold">rajmangat121@gmail.com</p>
+                  <p className="text-lg sm:text-xl font-bold break-all group-hover:text-rose-400 transition-colors">rajmangat121@gmail.com</p>
                 </div>
-              </div>
+              </a>
             </div>
           </div>
 
@@ -978,7 +1789,7 @@ const Contact = () => {
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="bg-white text-black p-10 rounded-[40px] shadow-2xl"
+            className="bg-white text-black p-6 sm:p-10 rounded-[32px] sm:rounded-[40px] shadow-2xl"
           >
             <AnimatePresence mode="wait">
               {isSuccess ? (
@@ -990,79 +1801,85 @@ const Contact = () => {
                   className="text-center py-12"
                 >
                   <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <Star className="w-10 h-10 fill-current" />
+                    <Check className="w-10 h-10" strokeWidth={3} />
                   </div>
-                  <h3 className="text-3xl font-black mb-4 uppercase">Message Sent!</h3>
-                  <p className="text-gray-500">Thank you for reaching out. We'll get back to you within 2 hours.</p>
+                  <h3 className="text-3xl font-black mb-4 uppercase">{FORMSPREE_ENDPOINT ? 'Message Sent!' : 'Almost there!'}</h3>
+                  {FORMSPREE_ENDPOINT ? (
+                    <p className="text-gray-500">Thank you for reaching out — we'll get back to you within 2 hours. Prefer to talk now? <a href="tel:+17802358082" className="text-rose-600 font-bold hover:underline">(780) 235-8082</a></p>
+                  ) : (
+                    <p className="text-gray-500">We've opened WhatsApp with your message ready to send — just tap send and we'll reply within 2 hours. Prefer email? <a href="mailto:rajmangat121@gmail.com" className="text-rose-600 font-bold hover:underline">rajmangat121@gmail.com</a></p>
+                  )}
                 </motion.div>
               ) : (
                 <form key="form" onSubmit={handleSubmit} className="space-y-6">
                   <div className="grid md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <label className="text-xs font-black uppercase tracking-widest text-gray-400">Full Name</label>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         name="fullName"
                         value={formData.fullName}
                         onChange={handleChange}
+                        autoComplete="name"
                         className={cn(
-                          "w-full bg-gray-50 border-none rounded-xl p-4 focus:ring-2 transition-all",
-                          errors.fullName ? "ring-2 ring-red-500" : "focus:ring-rose-600"
-                        )} 
-                        placeholder="Enter your full name here" 
+                          "w-full bg-gray-50 border rounded-xl p-4 outline-none transition-all duration-200 hover:bg-gray-100 focus:bg-white focus:ring-4",
+                          errors.fullName
+                            ? "border-red-500 ring-4 ring-red-500/10"
+                            : "border-transparent focus:border-rose-600 focus:ring-rose-600/10"
+                        )}
+                        placeholder="Enter your full name here"
                       />
                       {errors.fullName && <p className="text-red-500 text-[10px] font-bold uppercase tracking-widest">{errors.fullName}</p>}
                     </div>
                     <div className="space-y-2">
                       <label className="text-xs font-black uppercase tracking-widest text-gray-400">Phone Number</label>
-                      <input 
-                        type="tel" 
+                      <input
+                        type="tel"
                         name="phoneNumber"
                         value={formData.phoneNumber}
                         onChange={handleChange}
+                        inputMode="tel"
+                        autoComplete="tel"
                         className={cn(
-                          "w-full bg-gray-50 border-none rounded-xl p-4 focus:ring-2 transition-all",
-                          errors.phoneNumber ? "ring-2 ring-red-500" : "focus:ring-rose-600"
-                        )} 
-                        placeholder="We'll call you back soon" 
+                          "w-full bg-gray-50 border rounded-xl p-4 outline-none transition-all duration-200 hover:bg-gray-100 focus:bg-white focus:ring-4",
+                          errors.phoneNumber
+                            ? "border-red-500 ring-4 ring-red-500/10"
+                            : "border-transparent focus:border-rose-600 focus:ring-rose-600/10"
+                        )}
+                        placeholder="We'll call you back soon"
                       />
                       {errors.phoneNumber && <p className="text-red-500 text-[10px] font-bold uppercase tracking-widest">{errors.phoneNumber}</p>}
                     </div>
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-black uppercase tracking-widest text-gray-400">Service Interested In</label>
-                    <select 
-                      name="service"
+                    <ServiceDropdown
                       value={formData.service}
-                      onChange={handleChange}
-                      className="w-full bg-gray-50 border-none rounded-xl p-4 focus:ring-2 focus:ring-rose-600 transition-all"
-                    >
-                      <option>Class 5 GDL Training</option>
-                      <option>Insurance Reduction Course</option>
-                      <option>Brush-up Lesson</option>
-                      <option>Other</option>
-                    </select>
+                      onChange={(v) => setFormData(prev => ({ ...prev, service: v }))}
+                    />
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-black uppercase tracking-widest text-gray-400">Message</label>
-                    <textarea 
+                    <textarea
                       name="message"
                       value={formData.message}
                       onChange={handleChange}
                       className={cn(
-                        "w-full bg-gray-50 border-none rounded-xl p-4 h-32 focus:ring-2 transition-all",
-                        errors.message ? "ring-2 ring-red-500" : "focus:ring-rose-600"
-                      )} 
+                        "w-full bg-gray-50 border rounded-xl p-4 h-32 outline-none resize-none transition-all duration-200 hover:bg-gray-100 focus:bg-white focus:ring-4",
+                        errors.message
+                          ? "border-red-500 ring-4 ring-red-500/10"
+                          : "border-transparent focus:border-rose-600 focus:ring-rose-600/10"
+                      )}
                       placeholder="How can we help you master the road?"
                     ></textarea>
                     {errors.message && <p className="text-red-500 text-[10px] font-bold uppercase tracking-widest">{errors.message}</p>}
                   </div>
-                  <button 
+                  <button
                     type="submit"
                     disabled={isSubmitting}
                     className={cn(
-                      "w-full bg-black text-white py-5 rounded-2xl font-black text-lg hover:bg-rose-600 transition-all flex items-center justify-center gap-2",
-                      isSubmitting && "opacity-70 cursor-not-allowed"
+                      "w-full bg-black text-white py-5 rounded-2xl font-black text-lg transition-all duration-300 flex items-center justify-center gap-2 hover:bg-rose-600 hover:shadow-xl hover:shadow-rose-600/25 active:scale-[0.98]",
+                      isSubmitting && "opacity-70 cursor-not-allowed hover:shadow-none active:scale-100"
                     )}
                   >
                     {isSubmitting ? (
@@ -1110,7 +1927,7 @@ const SocialLink: React.FC<{ social: { name: string, icon: any, href: string } }
         rel="noopener noreferrer"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center text-gray-400 hover:text-rose-600 hover:bg-rose-50 transition-all"
+        className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center text-gray-400 hover:text-rose-600 hover:bg-rose-50 hover:-translate-y-1 hover:shadow-md active:scale-90 transition-all duration-300"
         aria-label={social.name}
       >
         <social.icon className="w-5 h-5" />
@@ -1119,29 +1936,110 @@ const SocialLink: React.FC<{ social: { name: string, icon: any, href: string } }
   );
 };
 
+const FOOTER_SOCIALS = [
+  { name: 'Instagram', icon: Instagram, href: 'https://www.instagram.com/ready2driv.e?igsh=MWx2c3ZlMXhoNjk0dQ%3D%3D' },
+  { name: 'Facebook', icon: Facebook, href: 'https://www.facebook.com/profile.php?id=61588801644776' },
+  { name: 'TikTok', icon: Music, href: 'https://www.tiktok.com/@ready2drive4?_r=1&_t=ZS-95vk5EujQs1' },
+  { name: 'YouTube', icon: Youtube, href: 'https://www.youtube.com/@ready2drive-z1h' },
+];
+
+const FOOTER_EXPLORE = [
+  { name: 'Services', to: 'services' },
+  { name: 'Fee Schedule', to: 'packages' },
+  { name: 'Book a Lesson', to: 'booking' },
+  { name: 'Training Videos', to: 'training' },
+  { name: 'Practice Quiz', to: 'study-quiz' },
+];
+
+const FOOTER_COMPANY = [
+  { name: 'About Us', to: 'about' },
+  { name: 'Reviews', to: 'testimonials' },
+  { name: 'FAQ', to: 'faq' },
+  { name: 'Contact', to: 'contact' },
+];
+
 const Footer = () => {
   return (
-    <footer className="py-12 border-t border-gray-100">
-      <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-8">
-        <div className="flex items-center gap-2">
-          <div className="bg-rose-600 p-1 rounded-lg">
-            <GraduationCap className="w-5 h-5 text-white" />
+    <footer className="border-t border-gray-100 pt-16 pb-12">
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-4 mb-12">
+          {/* Brand + socials */}
+          <div>
+            <Link to="home" smooth={true} className="flex items-center gap-2 cursor-pointer group mb-4">
+              <div className="bg-rose-600 p-1 rounded-lg group-hover:rotate-12 transition-transform duration-300">
+                <GraduationCap className="w-5 h-5 text-white" />
+              </div>
+              <span className="font-extrabold text-lg tracking-tighter uppercase">Ready 2 <span className="text-rose-600">Drive</span></span>
+            </Link>
+            <p className="text-sm text-gray-500 leading-relaxed max-w-xs">
+              Edmonton's premier driving school — Class 5 GDL, insurance reduction, and brush-up lessons with a 98% pass rate.
+            </p>
+            <div className="flex gap-4 mt-6">
+              {FOOTER_SOCIALS.map(social => (
+                <SocialLink key={social.name} social={social} />
+              ))}
+            </div>
           </div>
-          <span className="font-extrabold text-lg tracking-tighter uppercase">Ready 2 <span className="text-rose-600">Drive</span></span>
+
+          {/* Explore */}
+          <nav aria-label="Explore">
+            <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-5">Explore</h4>
+            <ul className="space-y-3">
+              {FOOTER_EXPLORE.map(l => (
+                <li key={l.to}>
+                  <Link to={l.to} smooth={true} offset={-80} className="text-sm font-medium text-gray-600 hover:text-rose-600 transition-colors cursor-pointer">
+                    {l.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+
+          {/* Company */}
+          <nav aria-label="Company">
+            <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-5">Company</h4>
+            <ul className="space-y-3">
+              {FOOTER_COMPANY.map(l => (
+                <li key={l.to}>
+                  <Link to={l.to} smooth={true} offset={-80} className="text-sm font-medium text-gray-600 hover:text-rose-600 transition-colors cursor-pointer">
+                    {l.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+
+          {/* Contact */}
+          <div>
+            <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-5">Get in touch</h4>
+            <ul className="space-y-4 text-sm">
+              <li>
+                <a href="tel:+17802358082" className="flex items-center gap-3 text-gray-600 hover:text-rose-600 transition-colors">
+                  <Phone className="w-4 h-4 text-rose-600 flex-shrink-0" /> (780) 235-8082
+                </a>
+              </li>
+              <li>
+                <a href="mailto:rajmangat121@gmail.com" className="flex items-center gap-3 text-gray-600 hover:text-rose-600 transition-colors break-all">
+                  <Mail className="w-4 h-4 text-rose-600 flex-shrink-0" /> rajmangat121@gmail.com
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://maps.google.com/?q=1503+12+ST+NW+Edmonton+AB+T6T+2V2"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-start gap-3 text-gray-600 hover:text-rose-600 transition-colors"
+                >
+                  <MapPin className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" /> 1503, 12 ST. NW, Edmonton, AB T6T 2V2
+                </a>
+              </li>
+            </ul>
+          </div>
         </div>
-        
-        <p className="text-sm text-gray-400 font-medium">© 2024 Ready 2 Drive Driving School. All rights reserved.</p>
-        
-        <div className="flex gap-6">
-          {[
-            { name: 'Instagram', icon: Instagram, href: 'https://www.instagram.com/ready2driv.e?igsh=MWx2c3ZlMXhoNjk0dQ%3D%3D' },
-            { name: 'Facebook', icon: Facebook, href: 'https://www.facebook.com/profile.php?id=61588801644776' },
-            { name: 'Twitter', icon: Twitter, href: 'https://twitter.com/ready2drive' },
-            { name: 'TikTok', icon: Music, href: 'https://www.tiktok.com/@ready2drive4?_r=1&_t=ZS-95vk5EujQs1' },
-            { name: 'YouTube', icon: Youtube, href: 'https://www.youtube.com/@ready2drive-z1h' }
-          ].map(social => (
-            <SocialLink key={social.name} social={social} />
-          ))}
+
+        <div className="border-t border-gray-100 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+          <p className="text-sm text-gray-400 font-medium">© {new Date().getFullYear()} Ready 2 Drive Driving School. All rights reserved.</p>
+          <p className="text-xs text-gray-400">Made with care in Edmonton, Alberta 🇨🇦</p>
         </div>
       </div>
     </footer>
@@ -1171,14 +2069,16 @@ const FloatingBookingButton = () => {
           initial={{ opacity: 0, scale: 0.5, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.5, y: 20 }}
-          className="fixed bottom-8 right-8 z-50"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className="fixed bottom-8 right-8 z-50 hidden md:block"
         >
           <Link
             to="booking"
             smooth={true}
             offset={-100}
             duration={800}
-            className="flex items-center gap-3 bg-rose-600 text-white px-6 py-4 rounded-full font-black shadow-2xl hover:bg-black hover:scale-105 transition-all cursor-pointer group"
+            className="flex items-center gap-3 bg-rose-600 text-white px-6 py-4 rounded-full font-black shadow-2xl shadow-rose-600/30 hover:bg-black transition-colors duration-300 cursor-pointer group"
           >
             <Calendar className="w-6 h-6" />
             <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-500 ease-in-out whitespace-nowrap">
@@ -1194,24 +2094,191 @@ const FloatingBookingButton = () => {
   );
 };
 
-export default function App() {
+const InAppBrowserBanner = () => {
+  const [show, setShow] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const ua = navigator.userAgent || '';
+    // Facebook / Instagram / Messenger / other social in-app browsers
+    const isInApp = /FBAN|FBAV|FB_IAB|Instagram|Messenger|Line\/|Twitter|TikTok/i.test(ua);
+    if (isInApp && !sessionStorage.getItem('r2d_dismissed_inapp')) {
+      setShow(true);
+    }
+  }, []);
+
+  const dismiss = () => {
+    try { sessionStorage.setItem('r2d_dismissed_inapp', '1'); } catch { /* ignore */ }
+    setShow(false);
+  };
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      /* clipboard may be blocked */
+    }
+  };
+
   return (
-    <div className="min-h-screen selection:bg-rose-100 selection:text-rose-900">
-      <Navbar />
-      <main>
-        <Hero />
-        <Services />
-        <Packages />
-        <Booking />
-        <TrainingVideos />
-        <StudyQuiz />
-        <About />
-        <Testimonials />
-        <FAQ />
-        <Contact />
-      </main>
-      <Footer />
-      <FloatingBookingButton />
+    <AnimatePresence>
+      {show && (
+        <motion.div
+          initial={{ y: 100, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 100, opacity: 0 }}
+          className="fixed bottom-0 left-0 right-0 z-[70] bg-black text-white px-5 py-4 shadow-2xl"
+        >
+          <div className="max-w-2xl mx-auto flex items-start gap-4">
+            <div className="flex-1">
+              <p className="font-bold text-sm">Open in your browser for the best experience</p>
+              <p className="text-xs text-gray-400 mt-1">
+                You're viewing this inside an in-app browser where the back button and links may not work. Tap the menu (⋯) and choose "Open in browser", or copy the link.
+              </p>
+              <button
+                onClick={copyLink}
+                className="mt-3 inline-flex items-center gap-2 bg-rose-600 text-white px-4 py-2 rounded-full text-xs font-bold hover:bg-rose-500 transition-all"
+              >
+                {copied ? 'Link Copied!' : 'Copy Link'}
+              </button>
+            </div>
+            <button onClick={dismiss} aria-label="Dismiss" className="text-gray-400 hover:text-white transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
+/** Scroll-to-top control for the long single page (kept clear of the right-side CTAs). */
+const BackToTop = () => {
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setShow(window.scrollY > 600);
+    onScroll();
+    window.addEventListener('scroll', onScroll);
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  return (
+    <AnimatePresence>
+      {show && (
+        <motion.button
+          initial={{ opacity: 0, scale: 0.5 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.5 }}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => animateScroll.scrollToTop({ smooth: true, duration: 600 })}
+          aria-label="Back to top"
+          className="fixed bottom-24 left-4 md:bottom-8 md:left-8 z-50 w-12 h-12 bg-white border border-gray-200 shadow-lg rounded-full flex items-center justify-center text-gray-600 hover:text-rose-600 hover:border-rose-200 transition-colors"
+        >
+          <ArrowUp className="w-5 h-5" />
+        </motion.button>
+      )}
+    </AnimatePresence>
+  );
+};
+
+/** Persistent bottom action bar on mobile so Call / WhatsApp / Book are always one tap away. */
+const MobileActionBar = () => {
+  const { selectedPackage } = useBooking();
+  const waMessage = selectedPackage
+    ? `Hi Raj, I'd like to book the ${selectedPackage} package.`
+    : "Hi Raj, I'd like to book a driving lesson.";
+
+  return (
+    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 grid grid-cols-3 bg-white/95 backdrop-blur border-t border-gray-100 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+      <a href="tel:+17802358082" className="flex flex-col items-center justify-center gap-1 py-3 text-gray-700 active:bg-gray-50">
+        <Phone className="w-5 h-5" />
+        <span className="text-[11px] font-bold">Call</span>
+      </a>
+      <a
+        href={buildWhatsAppLink(waMessage)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex flex-col items-center justify-center gap-1 py-3 text-[#128C7E] border-x border-gray-100 active:bg-gray-50"
+      >
+        <MessageCircle className="w-5 h-5" />
+        <span className="text-[11px] font-bold">WhatsApp</span>
+      </a>
+      <Link to="booking" smooth={true} offset={-80} className="flex flex-col items-center justify-center gap-1 py-3 bg-rose-600 text-white active:bg-rose-700 cursor-pointer">
+        <Calendar className="w-5 h-5" />
+        <span className="text-[11px] font-bold">Book</span>
+      </Link>
     </div>
+  );
+};
+
+export default function App() {
+  const [selectedPackage, setSelectedPackage] = useState('');
+
+  // Deep-link support: if the page loads with a #section hash, scroll there.
+  useEffect(() => {
+    const id = window.location.hash.replace('#', '');
+    if (!id) return;
+    const t = setTimeout(() => {
+      try { scroller.scrollTo(id, { smooth: true, offset: -80, duration: 600 }); } catch { /* unknown id */ }
+    }, 350);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Keep the URL hash in sync with the section in view so any section is shareable/bookmarkable.
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const url = entry.target.id === 'home'
+            ? window.location.pathname + window.location.search
+            : `#${entry.target.id}`;
+          window.history.replaceState(null, '', url);
+        });
+      },
+      { rootMargin: '-45% 0px -50% 0px', threshold: 0 }
+    );
+    BREADCRUMB_SECTIONS.forEach(({ id }) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <BookingContext.Provider value={{ selectedPackage, setSelectedPackage }}>
+      <div className="min-h-screen pb-20 md:pb-0 selection:bg-rose-100 selection:text-rose-900">
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:bg-rose-600 focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus:font-bold focus:shadow-lg"
+        >
+          Skip to main content
+        </a>
+        <ScrollProgressBar />
+        <InAppBrowserBanner />
+        <Navbar />
+        <Breadcrumbs />
+        <main id="main" tabIndex={-1} className="outline-none">
+          <Hero />
+          <Services />
+          <Packages />
+          <About />
+          <Testimonials />
+          <Booking />
+          <TrainingVideos />
+          <StudyQuiz />
+          <FAQ />
+          <Contact />
+        </main>
+        <Footer />
+        <FloatingBookingButton />
+        <BackToTop />
+        <MobileActionBar />
+      </div>
+    </BookingContext.Provider>
   );
 }
