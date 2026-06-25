@@ -2361,6 +2361,85 @@ const MobileActionBar = () => {
   );
 };
 
+/**
+ * Desktop sticky CTA — slides up after the hero, follows the user down the page,
+ * and reflects the package they last tapped. Dismissible for the session.
+ * (Mobile already has MobileActionBar; this is hidden below md.)
+ */
+const StickyCTA = () => {
+  const { selectedPackage } = useBooking();
+  const [show, setShow] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    if (sessionStorage.getItem('r2d_cta_dismissed')) {
+      setDismissed(true);
+      return;
+    }
+    const onScroll = () => {
+      const y = window.scrollY;
+      // Show past the hero, hide near the very bottom so it doesn't sit over the footer.
+      const nearBottom = window.innerHeight + y > document.body.scrollHeight - 640;
+      setShow(y > 620 && !nearBottom);
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll);
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  const dismiss = () => {
+    try { sessionStorage.setItem('r2d_cta_dismissed', '1'); } catch { /* ignore */ }
+    setDismissed(true);
+  };
+
+  if (dismissed) return null;
+
+  return (
+    <AnimatePresence>
+      {show && (
+        <motion.div
+          initial={{ y: 120, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 120, opacity: 0 }}
+          transition={{ type: "spring", stiffness: 260, damping: 28 }}
+          className="hidden md:block fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-[min(900px,calc(100vw-12rem))]"
+        >
+          <div className="shine shine-soft flex items-center gap-6 bg-black text-white rounded-2xl shadow-2xl shadow-black/30 pl-7 pr-3 py-4 border border-white/10">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <Calendar className="w-6 h-6 text-rose-500 shrink-0" />
+              <div className="min-w-0">
+                <p className="font-black leading-tight truncate">
+                  {selectedPackage ? `Ready to book the ${selectedPackage} package?` : 'Ready to hit the road?'}
+                </p>
+                <p className="text-xs text-gray-400 truncate">Free pickup in Edmonton · 98% first-try pass rate</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <a
+                href="tel:+17802358082"
+                className="hidden lg:inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm border border-white/20 hover:bg-white/10 transition-colors"
+              >
+                <Phone className="w-4 h-4" /> Call
+              </a>
+              <Link
+                to="booking"
+                smooth={true}
+                offset={-80}
+                className="inline-flex items-center gap-2 bg-rose-600 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-rose-500 active:scale-95 transition-all cursor-pointer"
+              >
+                Book a Lesson <ChevronRight className="w-4 h-4" />
+              </Link>
+              <button onClick={dismiss} aria-label="Dismiss" className="p-2 text-gray-400 hover:text-white transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
 export default function App() {
   const [selectedPackage, setSelectedPackage] = useState('');
 
@@ -2421,7 +2500,7 @@ export default function App() {
           <Contact />
         </main>
         <Footer />
-        <FloatingBookingButton />
+        <StickyCTA />
         <BackToTop />
         <MobileActionBar />
       </div>
