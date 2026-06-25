@@ -198,6 +198,141 @@ const Breadcrumbs = () => {
   );
 };
 
+/** Content for the Services mega-menu — names & copy taken verbatim from the live site sections. */
+const SERVICE_COURSES = [
+  { name: 'Class 5 GDL', desc: 'Comprehensive training for new drivers to get their basic license.', pkg: 'Standard GDL' },
+  { name: 'Advanced Road Test', desc: 'Preparation for the non-GDL Class 5 road test.', pkg: 'Non-GDL Special' },
+  { name: 'Brush-up Lessons', desc: 'Quick sessions to refine your skills before a road test.', pkg: 'Test Ready' },
+  { name: 'Insurance Reduction', desc: 'Government approved course to lower your premiums.', pkg: 'Standard GDL' },
+];
+
+const SERVICE_EXPLORE = [
+  { name: 'Fee Schedule', desc: 'Professional training for every stage.', to: 'packages' },
+  { name: 'Training Videos', desc: 'Master your driving skills.', to: 'training' },
+  { name: 'Study Modules', desc: 'Start your practice quiz.', to: 'study-quiz' },
+  { name: 'Student Success', desc: 'Hear from 5,000+ confident drivers.', to: 'testimonials' },
+];
+
+const SERVICE_PREVIEWS = ['cX0I8OdK7Tk', '8wIoR7fpPJM', '1Rdc0q_m2yY'];
+
+const ServicesMenu = () => {
+  const [open, setOpen] = useState(false);
+  const closeTimer = useRef<number | null>(null);
+
+  const openNow = () => {
+    if (closeTimer.current) window.clearTimeout(closeTimer.current);
+    setOpen(true);
+  };
+  const closeSoon = () => {
+    if (closeTimer.current) window.clearTimeout(closeTimer.current);
+    closeTimer.current = window.setTimeout(() => setOpen(false), 120);
+  };
+  const closeNow = () => {
+    if (closeTimer.current) window.clearTimeout(closeTimer.current);
+    setOpen(false);
+  };
+
+  return (
+    <div onMouseEnter={openNow} onMouseLeave={closeSoon}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className={cn(
+          "flex items-center gap-1 text-sm font-medium transition-colors cursor-pointer",
+          open ? "text-rose-600" : "hover:text-rose-500"
+        )}
+      >
+        Services
+        <ChevronDown className={cn("w-4 h-4 transition-transform duration-300", open && "rotate-180")} />
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            onMouseEnter={openNow}
+            onMouseLeave={closeSoon}
+            className="absolute top-full left-1/2 -translate-x-1/2 z-50 w-[min(920px,calc(100vw-3rem))] pt-4"
+          >
+            <div className="bg-white rounded-3xl shadow-2xl shadow-black/10 border border-gray-100 overflow-hidden">
+              <div className="grid md:grid-cols-[1.1fr_1fr_1fr]">
+                {/* Left feature panel */}
+                <div className="shine shine-soft bg-black text-white p-8 flex flex-col">
+                  <span className="text-rose-500 text-[10px] font-black uppercase tracking-[0.2em] mb-4">Our Expertise</span>
+                  <h3 className="text-2xl font-black leading-tight mb-3 uppercase tracking-tighter">Master the <span className="text-rose-600 italic">road</span> with confidence</h3>
+                  <p className="text-gray-400 text-sm leading-relaxed mb-6">We offer a wide range of driving courses designed to make you a safe and confident driver for life.</p>
+                  <Link to="services" smooth={true} offset={-80} onClick={closeNow} className="mt-auto inline-flex items-center gap-1 text-rose-500 font-bold text-sm cursor-pointer hover:gap-2 transition-all">
+                    View all courses <ChevronRight className="w-4 h-4" />
+                  </Link>
+                </div>
+
+                {/* Our Expertise */}
+                <div className="p-8">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-5">Our Expertise</p>
+                  <div className="space-y-4">
+                    {SERVICE_COURSES.map((c) => (
+                      <button
+                        key={c.name}
+                        type="button"
+                        onClick={() => { goToPackage(c.pkg); closeNow(); }}
+                        className="block w-full text-left group"
+                      >
+                        <p className="font-bold text-sm group-hover:text-rose-600 transition-colors">{c.name}</p>
+                        <p className="text-gray-400 text-xs mt-0.5">{c.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Explore */}
+                <div className="p-8">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-5">Explore</p>
+                  <div className="space-y-4">
+                    {SERVICE_EXPLORE.map((e) => (
+                      <Link key={e.to} to={e.to} smooth={true} offset={-80} onClick={closeNow} className="block group cursor-pointer">
+                        <p className="font-bold text-sm group-hover:text-rose-600 transition-colors">{e.name}</p>
+                        <p className="text-gray-400 text-xs mt-0.5">{e.desc}</p>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* See it live */}
+              <div className="bg-gray-50 border-t border-gray-100 px-8 py-5 flex items-center justify-between gap-6">
+                <div className="flex items-center gap-4">
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 whitespace-nowrap">See it live</span>
+                  <div className="flex gap-3">
+                    {SERVICE_PREVIEWS.map((id) => (
+                      <Link
+                        key={id}
+                        to="training"
+                        smooth={true}
+                        offset={-80}
+                        onClick={closeNow}
+                        className="block w-24 h-14 rounded-lg overflow-hidden border border-gray-200 hover:border-rose-300 hover:scale-105 transition-all cursor-pointer"
+                      >
+                        <img src={`https://img.youtube.com/vi/${id}/mqdefault.jpg`} alt="Training video preview" loading="lazy" className="w-full h-full object-cover" />
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+                <Link to="training" smooth={true} offset={-80} onClick={closeNow} className="inline-flex items-center gap-1 text-rose-600 font-bold text-sm whitespace-nowrap cursor-pointer hover:gap-2 transition-all">
+                  Watch training <ChevronRight className="w-4 h-4" />
+                </Link>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -208,6 +343,7 @@ const Navbar = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Full list — used by the mobile menu (which has no mega-menu).
   const navLinks = [
     { name: 'Home', to: 'home' },
     { name: 'Services', to: 'services' },
@@ -220,6 +356,12 @@ const Navbar = () => {
     { name: 'FAQ', to: 'faq' },
     { name: 'Contact', to: 'contact' },
   ];
+
+  // Trimmed top-level set for desktop — Fees/Reviews/Videos/Quiz live inside the Services mega-menu,
+  // and Book has its own CTA button, so they're dropped here to keep the hero uncluttered.
+  const desktopLinks = navLinks.filter((l) =>
+    ['home', 'services', 'about', 'faq', 'contact'].includes(l.to)
+  );
 
   return (
     <nav className={cn(
@@ -237,19 +379,23 @@ const Navbar = () => {
         </Link>
 
         {/* Desktop Nav */}
-        <div className="hidden md:flex items-center gap-5 lg:gap-7">
-          {navLinks.map((link) => (
-            <Link
-              key={link.to}
-              to={link.to}
-              smooth={true}
-              spy={true}
-              activeClass="text-rose-600 font-semibold"
-              className="text-sm font-medium hover:text-rose-500 transition-colors cursor-pointer"
-            >
-              {link.name}
-            </Link>
-          ))}
+        <div className="hidden md:flex items-center gap-7 lg:gap-9">
+          {desktopLinks.map((link) =>
+            link.to === 'services' ? (
+              <ServicesMenu key={link.to} />
+            ) : (
+              <Link
+                key={link.to}
+                to={link.to}
+                smooth={true}
+                spy={true}
+                activeClass="text-rose-600 font-semibold"
+                className="text-sm font-medium hover:text-rose-500 transition-colors cursor-pointer"
+              >
+                {link.name}
+              </Link>
+            )
+          )}
           <Link to="booking" smooth={true} className="flex items-center gap-2 bg-black text-white px-5 py-2.5 rounded-full text-sm font-bold hover:bg-rose-600 hover:shadow-lg hover:shadow-rose-600/25 active:scale-95 transition-all duration-300 cursor-pointer group">
             <Phone className="w-4 h-4 group-hover:rotate-12 transition-transform" />
             Book Now
@@ -377,13 +523,13 @@ const Hero = () => {
             Edmonton's Premier Driving School
           </div>
           <h1 className="text-4xl sm:text-6xl md:text-8xl font-black leading-[0.9] tracking-tighter mb-8 break-words">
-            MASTER THE <span className="text-rose-600 italic">ROAD</span> WITH CONFIDENCE
+            MASTER THE <span className="text-shimmer italic">ROAD</span> WITH CONFIDENCE
           </h1>
           <p className="text-lg text-gray-600 max-w-lg mb-10 leading-relaxed">
             Professional driving instruction tailored to your needs. From nervous beginners to advanced brush-ups, we ensure you're road-ready and safe.
           </p>
           <div className="flex flex-col sm:flex-row gap-4">
-            <Link to="booking" smooth={true} className="bg-black text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-rose-600 hover:shadow-xl hover:shadow-rose-600/25 active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-2 group cursor-pointer">
+            <Link to="booking" smooth={true} className="shine bg-black text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-rose-600 hover:shadow-xl hover:shadow-rose-600/25 active:scale-[0.98] transition-all duration-300 flex items-center justify-center gap-2 group cursor-pointer">
               Book a Lesson
               <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Link>
@@ -432,7 +578,7 @@ const Hero = () => {
           <motion.div 
             animate={{ y: [0, -10, 0] }}
             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute -top-6 -right-6 bg-rose-600 text-white p-6 rounded-3xl shadow-xl z-20 hidden md:block"
+            className="shine absolute -top-6 -right-6 bg-rose-600 text-white p-6 rounded-3xl shadow-xl z-20 hidden md:block"
           >
             <p className="text-4xl font-black leading-none"><CountUp end={98} suffix="%" /></p>
             <p className="text-xs font-bold uppercase tracking-tighter">Pass Rate</p>
