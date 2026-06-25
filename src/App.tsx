@@ -465,22 +465,8 @@ const Navbar = () => {
   );
 };
 
-/** Next available slot: next weekday (skip Sun), shown honestly instead of a hardcoded date. */
-const getNextSlot = () => {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  if (d.getDay() === 0) d.setDate(d.getDate() + 1); // skip Sunday
-  const today = new Date();
-  const isTomorrow = d.getDate() === today.getDate() + 1;
-  const label = isTomorrow
-    ? 'TOMORROW'
-    : d.toLocaleDateString('en-CA', { weekday: 'long' }).toUpperCase();
-  return `${label} @ 10:00 AM`;
-};
-
 const Hero = () => {
   const containerRef = useRef<HTMLElement>(null);
-  const nextSlot = getNextSlot();
   const { scrollYProgress } = useScroll({
     target: containerRef,
     offset: ["start start", "end start"]
@@ -569,8 +555,24 @@ const Hero = () => {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
             <div className="absolute bottom-8 left-8 right-8 text-white">
-              <p className="text-sm font-bold uppercase tracking-widest mb-2 text-rose-400">Next Available Slot</p>
-              <p className="text-2xl font-black">{nextSlot}</p>
+              <p className="text-sm font-bold uppercase tracking-widest mb-2 text-rose-400">Check Availability</p>
+              <p className="text-lg font-bold leading-snug mb-3">Message us on WhatsApp or call for open slots.</p>
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href={buildWhatsAppLink('Hi Raj, what lesson slots do you have available?')}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 bg-[#25D366] text-white text-sm font-bold px-3 py-1.5 rounded-lg hover:bg-[#128C7E] active:scale-95 transition-all"
+                >
+                  <MessageCircle className="w-4 h-4" /> WhatsApp
+                </a>
+                <a
+                  href="tel:+17802358082"
+                  className="inline-flex items-center gap-1.5 bg-white text-black text-sm font-bold px-3 py-1.5 rounded-lg hover:bg-rose-600 hover:text-white active:scale-95 transition-all"
+                >
+                  <Phone className="w-4 h-4" /> Call
+                </a>
+              </div>
             </div>
           </div>
           
@@ -655,18 +657,34 @@ const TrainingVideos = () => {
     { id: "ypszdIU3Whs", title: "Training Video 7" },
   ];
 
+  const PREVIEW_COUNT = 3;
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? videos : videos.slice(0, PREVIEW_COUNT);
+  const hiddenCount = videos.length - PREVIEW_COUNT;
+
   return (
-    <section id="training" className="py-24 bg-white">
+    <section id="training" className="py-16 bg-white">
       <div className="max-w-7xl mx-auto px-6">
-        <div className="text-center mb-16">
+        <div className="text-center mb-12">
           <h2 className="text-4xl md:text-5xl font-black tracking-tight uppercase">Training <span className="text-rose-600">Videos</span></h2>
           <p className="text-gray-500 mt-4">Watch these helpful videos to master your driving skills.</p>
         </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {videos.map((video) => (
+          {visible.map((video) => (
             <VideoEmbed key={video.id} id={video.id} title={video.title} />
           ))}
         </div>
+        {hiddenCount > 0 && (
+          <div className="text-center mt-10">
+            <button
+              onClick={() => setExpanded((v) => !v)}
+              className="inline-flex items-center gap-2 bg-black text-white px-6 py-3 rounded-full font-bold text-sm hover:bg-rose-600 active:scale-95 transition-all duration-300"
+            >
+              {expanded ? 'Show fewer videos' : `Show ${hiddenCount} more videos`}
+              <ChevronDown className={cn("w-4 h-4 transition-transform duration-300", expanded && "rotate-180")} />
+            </button>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -720,14 +738,14 @@ const Services = () => {
   ];
 
   return (
-    <section id="services" className="py-24 bg-gray-50">
+    <section id="services" className="py-16 bg-gray-50">
       <div className="max-w-7xl mx-auto px-6">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="text-center mb-16"
+          className="text-center mb-12"
         >
           <h2 className="text-4xl md:text-5xl font-black tracking-tight mb-4 uppercase">Our <span className="text-rose-600">Expertise</span></h2>
           <p className="text-gray-500 max-w-2xl mx-auto">We offer a wide range of driving courses designed to make you a safe and confident driver for life.</p>
@@ -825,14 +843,14 @@ const Packages = () => {
   ];
 
   return (
-    <section id="packages" className="py-24">
+    <section id="packages" className="py-16">
       <div className="max-w-7xl mx-auto px-6">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6"
+          className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6"
         >
           <div>
             <h2 className="text-4xl md:text-5xl font-black tracking-tight uppercase">Fee <span className="text-rose-600">Schedule</span></h2>
@@ -946,14 +964,14 @@ const Booking = () => {
     : "Hi Raj, I'd like to book a driving lesson. When is your next availability?";
 
   return (
-    <section id="booking" className="py-24 bg-white">
+    <section id="booking" className="py-16 bg-white">
       <div className="max-w-7xl mx-auto px-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="text-center mb-16"
+          className="text-center mb-12"
         >
           <h2 className="text-4xl md:text-5xl font-black tracking-tight uppercase">Book Your <span className="text-rose-600">Lesson</span></h2>
           <p className="text-gray-500 mt-4">Select a time that works for you and start your journey today.</p>
@@ -1046,9 +1064,9 @@ const About = () => {
     `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&size=320&background=e11d48&color=ffffff&bold=true&font-size=0.4`;
 
   return (
-    <section id="about" className="py-24 bg-gray-50">
+    <section id="about" className="py-16 bg-gray-50">
       <div className="max-w-7xl mx-auto px-6">
-        <div className="grid lg:grid-cols-2 gap-16 items-center mb-24">
+        <div className="grid lg:grid-cols-2 gap-16 items-center mb-16">
           <motion.div
             initial={{ opacity: 0, x: -30 }}
             whileInView={{ opacity: 1, x: 0 }}
@@ -1093,7 +1111,7 @@ const About = () => {
           </motion.div>
         </div>
 
-        <div className="text-center mb-16">
+        <div className="text-center mb-12">
           <h3 className="text-3xl md:text-4xl font-black tracking-tight uppercase">Meet Our <span className="text-rose-600">Instructors</span></h3>
           <p className="text-gray-500 mt-4">Learn from the best in the industry.</p>
         </div>
@@ -1239,14 +1257,14 @@ const Testimonials = () => {
   };
 
   return (
-    <section id="testimonials" className="py-24 overflow-hidden bg-white">
+    <section id="testimonials" className="py-16 overflow-hidden bg-white">
       <div className="max-w-7xl mx-auto px-6">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="text-center mb-16"
+          className="text-center mb-12"
         >
           <h2 className="text-4xl md:text-5xl font-black tracking-tight uppercase">Student <span className="text-rose-600">Success</span></h2>
           <p className="text-gray-500 mt-4">Hear from some of our 5,000+ confident drivers who mastered the road with us.</p>
@@ -1539,14 +1557,14 @@ const FAQ = () => {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   return (
-    <section id="faq" className="py-24 bg-gray-50">
+    <section id="faq" className="py-16 bg-gray-50">
       <div className="max-w-4xl mx-auto px-6">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="text-center mb-16"
+          className="text-center mb-12"
         >
           <h2 className="text-4xl md:text-5xl font-black tracking-tight uppercase">Common <span className="text-rose-600">Questions</span></h2>
           <p className="text-gray-500 mt-4">Everything you need to know about starting your journey with Ready 2 Drive.</p>
@@ -1881,7 +1899,7 @@ const Contact = () => {
   };
 
   return (
-    <section id="contact" className="py-24 bg-black text-white overflow-hidden relative">
+    <section id="contact" className="py-16 bg-black text-white overflow-hidden relative">
       <div className="absolute top-0 right-0 w-1/2 h-full bg-rose-600/5 -skew-x-12 translate-x-1/4" />
       
       <div className="max-w-7xl mx-auto px-6 relative z-10">
