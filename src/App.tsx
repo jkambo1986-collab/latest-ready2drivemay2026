@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useScroll, useTransform, useInView, useSpring } from 'motion/react';
 import { Link, scroller, animateScroll } from 'react-scroll';
-import { Menu, X, GraduationCap, Phone, ChevronRight, ChevronLeft, Star, ChevronDown, Calendar, Instagram, Facebook, MessageCircle, Music, Youtube, Home, Play, Mail, MapPin, ArrowUp, Check } from 'lucide-react';
+import { Menu, X, GraduationCap, Phone, ChevronRight, ChevronLeft, Star, ChevronDown, Calendar, Instagram, Facebook, MessageCircle, Music, Youtube, Play, Mail, MapPin, ArrowUp, Check, Send, Banknote, FileText } from 'lucide-react';
 import { cn } from './lib/utils';
 import { StudyQuiz } from './components/StudyQuiz';
 
@@ -111,8 +111,8 @@ const CountUp: React.FC<{ end: number; suffix?: string; prefix?: string; duratio
   );
 };
 
-/** Sections used by the scroll-aware breadcrumb trail. */
-const BREADCRUMB_SECTIONS = [
+/** Section ids used to keep the URL hash in sync with the section currently in view. */
+const PAGE_SECTIONS = [
   { id: 'home', label: 'Home' },
   { id: 'services', label: 'Services' },
   { id: 'packages', label: 'Fees' },
@@ -124,79 +124,6 @@ const BREADCRUMB_SECTIONS = [
   { id: 'faq', label: 'FAQ' },
   { id: 'contact', label: 'Contact' },
 ];
-
-const Breadcrumbs = () => {
-  const [activeId, setActiveId] = useState('home');
-  const [show, setShow] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setShow(window.scrollY > 600);
-    onScroll();
-    window.addEventListener('scroll', onScroll);
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) setActiveId(entry.target.id);
-        });
-      },
-      { rootMargin: '-45% 0px -50% 0px', threshold: 0 }
-    );
-    BREADCRUMB_SECTIONS.forEach(({ id }) => {
-      const el = document.getElementById(id);
-      if (el) observer.observe(el);
-    });
-    return () => observer.disconnect();
-  }, []);
-
-  const current = BREADCRUMB_SECTIONS.find((s) => s.id === activeId) ?? BREADCRUMB_SECTIONS[0];
-  const isHome = current.id === 'home';
-
-  return (
-    <AnimatePresence>
-      {show && (
-        <motion.nav
-          aria-label="Breadcrumb"
-          initial={{ opacity: 0, y: -12 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -12 }}
-          className="fixed top-[4.5rem] md:top-20 left-1/2 -translate-x-1/2 z-40 block"
-        >
-          <ol className="flex items-center gap-1.5 bg-white/80 backdrop-blur-md border border-gray-100 shadow-lg shadow-black/5 rounded-full px-3 py-1.5 md:px-4 md:py-2 text-[10px] md:text-xs font-bold">
-            <li>
-              <Link
-                to="home"
-                smooth={true}
-                className="flex items-center gap-1.5 text-gray-400 hover:text-rose-600 transition-colors cursor-pointer"
-              >
-                <Home className="w-3.5 h-3.5" />
-                Home
-              </Link>
-            </li>
-            {!isHome && (
-              <>
-                <ChevronRight className="w-3.5 h-3.5 text-gray-300" />
-                <li>
-                  <motion.span
-                    key={current.id}
-                    initial={{ opacity: 0, x: -6 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="text-rose-600 uppercase tracking-widest"
-                  >
-                    {current.label}
-                  </motion.span>
-                </li>
-              </>
-            )}
-          </ol>
-        </motion.nav>
-      )}
-    </AnimatePresence>
-  );
-};
 
 /** Content for the Services mega-menu — names & copy taken verbatim from the live site sections. */
 const SERVICE_COURSES = [
@@ -259,7 +186,7 @@ const ServicesMenu = () => {
             className="absolute top-full left-1/2 -translate-x-1/2 z-50 w-[min(920px,calc(100vw-3rem))] pt-4"
           >
             <div className="bg-white rounded-3xl shadow-2xl shadow-black/10 border border-gray-100 overflow-hidden">
-              <div className="grid md:grid-cols-[1.1fr_1fr_1fr]">
+              <div className="grid grid-cols-1 md:grid-cols-[1.1fr_1fr_1fr]">
                 {/* Left feature panel */}
                 <div className="shine shine-soft bg-black text-white p-8 flex flex-col">
                   <span className="text-rose-500 text-[10px] font-black uppercase tracking-[0.2em] mb-4">Our Expertise</span>
@@ -496,7 +423,7 @@ const Hero = () => {
         />
       </div>
 
-      <div className="max-w-7xl w-full mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center">
+      <div className="max-w-7xl w-full mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
         <motion.div
           className="min-w-0"
           style={{ opacity }}
@@ -663,13 +590,13 @@ const TrainingVideos = () => {
   const hiddenCount = videos.length - PREVIEW_COUNT;
 
   return (
-    <section id="training" className="py-16 bg-white">
+    <section id="training" className="py-12 bg-white">
       <div className="max-w-7xl mx-auto px-6">
         <div className="text-center mb-12">
           <h2 className="text-4xl md:text-5xl font-black tracking-tight uppercase">Training <span className="text-rose-600">Videos</span></h2>
           <p className="text-gray-500 mt-4">Watch these helpful videos to master your driving skills.</p>
         </div>
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {visible.map((video) => (
             <VideoEmbed key={video.id} id={video.id} title={video.title} />
           ))}
@@ -738,7 +665,7 @@ const Services = () => {
   ];
 
   return (
-    <section id="services" className="py-16 bg-gray-50">
+    <section id="services" className="py-12 bg-gray-50">
       <div className="max-w-7xl mx-auto px-6">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
@@ -751,7 +678,7 @@ const Services = () => {
           <p className="text-gray-500 max-w-2xl mx-auto">We offer a wide range of driving courses designed to make you a safe and confident driver for life.</p>
         </motion.div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {services.map((s, i) => (
             <motion.div
               key={i}
@@ -843,7 +770,7 @@ const Packages = () => {
   ];
 
   return (
-    <section id="packages" className="py-16">
+    <section id="packages" className="py-12">
       <div className="max-w-7xl mx-auto px-6">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
@@ -858,7 +785,7 @@ const Packages = () => {
           </div>
         </motion.div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {packages.map((p, i) => (
             <motion.div
               key={i}
@@ -936,6 +863,31 @@ const Packages = () => {
             <p className="text-sm text-gray-500 font-medium">Available for road tests. Professional, clean, and test-ready vehicle.</p>
           </motion.div>
         </div>
+
+        {/* Mode of Payment */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+          className="mt-12 flex flex-col md:flex-row md:items-center gap-6 rounded-[32px] border-2 border-gray-100 bg-white p-8"
+        >
+          <span className="text-rose-600 text-[10px] font-black uppercase tracking-[0.2em] shrink-0">Mode of Payment</span>
+          <div className="flex flex-wrap gap-3">
+            {[
+              { label: 'E-Transfer', icon: Send },
+              { label: 'Cash', icon: Banknote },
+              { label: 'Cheque', icon: FileText },
+            ].map((m) => (
+              <div key={m.label} className="flex items-center gap-2 rounded-2xl bg-gray-50 border border-gray-100 px-5 py-3 font-bold text-sm">
+                <div className="w-7 h-7 rounded-full bg-black text-white flex items-center justify-center">
+                  <m.icon className="w-4 h-4" />
+                </div>
+                {m.label}
+              </div>
+            ))}
+          </div>
+        </motion.div>
       </div>
     </section>
   );
@@ -964,7 +916,7 @@ const Booking = () => {
     : "Hi Raj, I'd like to book a driving lesson. When is your next availability?";
 
   return (
-    <section id="booking" className="py-16 bg-white">
+    <section id="booking" className="py-12 bg-white">
       <div className="max-w-7xl mx-auto px-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -1064,9 +1016,9 @@ const About = () => {
     `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&size=320&background=e11d48&color=ffffff&bold=true&font-size=0.4`;
 
   return (
-    <section id="about" className="py-16 bg-gray-50">
+    <section id="about" className="py-12 bg-gray-50">
       <div className="max-w-7xl mx-auto px-6">
-        <div className="grid lg:grid-cols-2 gap-16 items-center mb-16">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center mb-16">
           <motion.div
             initial={{ opacity: 0, x: -30 }}
             whileInView={{ opacity: 1, x: 0 }}
@@ -1116,7 +1068,7 @@ const About = () => {
           <p className="text-gray-500 mt-4">Learn from the best in the industry.</p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-12 max-w-5xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 max-w-5xl mx-auto">
           {instructors.map((instructor, i) => (
             <motion.div
               key={i}
@@ -1257,7 +1209,7 @@ const Testimonials = () => {
   };
 
   return (
-    <section id="testimonials" className="py-16 overflow-hidden bg-white">
+    <section id="testimonials" className="py-12 overflow-hidden bg-white">
       <div className="max-w-7xl mx-auto px-6">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
@@ -1557,7 +1509,7 @@ const FAQ = () => {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   return (
-    <section id="faq" className="py-16 bg-gray-50">
+    <section id="faq" className="py-12 bg-gray-50">
       <div className="max-w-4xl mx-auto px-6">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
@@ -1899,11 +1851,11 @@ const Contact = () => {
   };
 
   return (
-    <section id="contact" className="py-16 bg-black text-white overflow-hidden relative">
+    <section id="contact" className="py-12 bg-black text-white overflow-hidden relative">
       <div className="absolute top-0 right-0 w-1/2 h-full bg-rose-600/5 -skew-x-12 translate-x-1/4" />
       
       <div className="max-w-7xl mx-auto px-6 relative z-10">
-        <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
           <div>
             <h2 className="text-5xl md:text-7xl font-black tracking-tighter mb-8 leading-none">
               READY TO <br />
@@ -1934,7 +1886,7 @@ const Contact = () => {
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm text-gray-500 font-bold uppercase tracking-widest">Office</p>
-                  <p className="text-lg sm:text-xl font-bold break-words group-hover:text-rose-400 transition-colors">1503, 12 ST. NW Edmonton T6T 2V2</p>
+                  <p className="text-lg sm:text-xl font-bold break-words group-hover:text-rose-400 transition-colors">1503, 12 ST. NW, Edmonton, AB T6T 2V2</p>
                 </div>
               </a>
               <a href="mailto:rajmangat121@gmail.com" className="flex items-center gap-6 group">
@@ -1946,6 +1898,33 @@ const Contact = () => {
                   <p className="text-lg sm:text-xl font-bold break-all group-hover:text-rose-400 transition-colors">rajmangat121@gmail.com</p>
                 </div>
               </a>
+            </div>
+
+            {/* WhatsApp QR — scan on desktop, tap on mobile */}
+            <div className="mt-10 flex items-center gap-5 rounded-3xl bg-white/5 border border-white/10 p-5">
+              <div className="bg-white p-2 rounded-2xl flex-shrink-0">
+                <img
+                  src="/whatsapp-qr.png"
+                  alt="Scan to chat with Ready 2 Drive on WhatsApp"
+                  width={112}
+                  height={112}
+                  loading="lazy"
+                  className="w-28 h-28 block"
+                />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm text-gray-500 font-bold uppercase tracking-widest mb-1">WhatsApp</p>
+                <p className="text-lg font-bold mb-3 leading-tight">Scan to chat with us</p>
+                <a
+                  href="https://wa.me/qr/3VC6C2RVJN72F1"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-400 text-white font-bold text-sm px-4 py-2.5 rounded-xl transition-colors active:scale-[0.98]"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  Chat on WhatsApp
+                </a>
+              </div>
             </div>
           </div>
 
@@ -1976,7 +1955,7 @@ const Contact = () => {
                 </motion.div>
               ) : (
                 <form key="form" onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <label className="text-xs font-black uppercase tracking-widest text-gray-400">Full Name</label>
                       <input
@@ -2485,7 +2464,7 @@ export default function App() {
       },
       { rootMargin: '-45% 0px -50% 0px', threshold: 0 }
     );
-    BREADCRUMB_SECTIONS.forEach(({ id }) => {
+    PAGE_SECTIONS.forEach(({ id }) => {
       const el = document.getElementById(id);
       if (el) observer.observe(el);
     });
@@ -2504,17 +2483,16 @@ export default function App() {
         <ScrollProgressBar />
         <InAppBrowserBanner />
         <Navbar />
-        <Breadcrumbs />
         <main id="main" tabIndex={-1} className="outline-none">
           <Hero />
           <Services />
           <Packages />
-          <About />
-          <Testimonials />
           <Booking />
+          <Testimonials />
+          <FAQ />
+          <About />
           <TrainingVideos />
           <StudyQuiz />
-          <FAQ />
           <Contact />
         </main>
         <Footer />
